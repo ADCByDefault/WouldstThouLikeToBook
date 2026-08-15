@@ -1,0 +1,43 @@
+#pragma once
+
+// defaults
+#define DEFAULT_SERVER_ADDRESS INADDR_LOOPBACK
+#define DEFAULT_SERVER_PORT 8080
+#define USERNAME_MAX_LENGTH 32
+#define PASSWORD_MAX_LENGTH 32
+#define ROOM_NAME_MAX_LENGTH 32
+
+// buffer sizes
+#define MAX_BUFFER_SIZE 1024
+#define PORT_STRING_SIZE 6
+#define IP_STRING_SIZE 16
+#define ADDRESS_STRING_SIZE IP_STRING_SIZE + PORT_STRING_SIZE
+
+// defining client defaults
+#define CLIENT_SETTINGS_FILE_NAME "./client_settings.txt"
+// definig client error codes
+#define CLIENT_ERROR_WRITE 1
+#define CLIENT_ERROR_READ 2
+#define CLIENT_ERROR_SOCKET_CREATION 3
+#define CLIENT_ERROR_CONNECTION 4
+#define CLIENT_ERROR_FORK 5
+
+// defining server defaults
+#define SERVER_SETTINGS_FILE_NAME "./server_settings.txt"
+#define USERS_FILE_NAME "./users.bat"
+#define BOOKINGS_FILE_NAME "./bookings.bat"
+#define ROOMS_FILE_NAME "./rooms.bat"
+// defining server error codes
+#define SERVER_ERROR_WRITE 1
+#define SERVER_ERROR_READ 2
+#define SERVER_INITIALIZATION_ERROR 3
+#define SERVER_ERROR_SOCKET_CREATION 4
+#define SERVER_ERROR_BIND 5
+#define SERVER_ERROR_LISTEN 6
+#define SERVER_ERROR_FAILED_IGNORE_SIGCHLD 7
+#define SERVER_ERROR_CHILD_CREATION 8
+// defining server child defaults
+#define SERVER_CHILD_DEFAULT_SOCKET_FD 3
+// defining server child error codes
+#define SERVER_CHILD_INVALID_ARGUMENTS 1
+#define SERVER_CHILD_ERROR_SOCKET_FD 2
