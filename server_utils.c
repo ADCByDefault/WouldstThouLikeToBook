@@ -37,7 +37,7 @@ struct sockaddr_in initialize_server() {
     server_address.sin_addr.s_addr = DEFAULT_SERVER_ADDRESS;
     server_address.sin_port = htons(DEFAULT_SERVER_PORT);
     if (settings_file != NULL) {
-        char ip_address[IP_ADDRESS_STRING_SIZE];
+        char ip_address[IP_STRING_SIZE];
         int port;
         if (fscanf(settings_file, "%15s:%d", ip_address, &port) == 2) {
             server_address.sin_addr.s_addr = inet_addr(ip_address);
