@@ -1,0 +1,7 @@
+//ignoring compiles files
+*.o
+*.out
+*.dat
+client
+server
+server_child

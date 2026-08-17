@@ -34,7 +34,7 @@ struct sockaddr_in initialize_server() {
     FILE *settings_file = fopen(SERVER_SETTINGS_FILE_NAME, "r");
     struct sockaddr_in server_address = {0};
     server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = DEFAULT_SERVER_ADDRESS;
+    server_address.sin_addr.s_addr = htonl(DEFAULT_SERVER_ADDRESS);
     server_address.sin_port = htons(DEFAULT_SERVER_PORT);
     if (settings_file != NULL) {
         char ip_address[IP_STRING_SIZE];

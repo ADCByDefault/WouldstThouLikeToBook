@@ -29,6 +29,8 @@ int main(int argc, char const *argv[]) {
         print_error_and_exit("Failed to create server socket", SERVER_ERROR_SOCKET_CREATION);
     }
 
+    printf("Server socket created successfully: %d\n", server_socket_fd);
+
     // Bind and listening server socket to address and port
     if (bind(server_socket_fd, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
         print_error_and_exit("Failed to bind server socket", SERVER_ERROR_BIND);
@@ -71,7 +73,7 @@ int main(int argc, char const *argv[]) {
             char client_address_str[ADDRESS_STRING_SIZE];
             snprintf(client_address_str, ADDRESS_STRING_SIZE, "%s:%d", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
             printf("Accepted connection from %s\n", client_address_str);
-            if(execl("./server_child", "./server_child", client_address_str, NULL) < 0) {
+            if (execl("./server_child", "./server_child", client_address_str, NULL) < 0) {
                 print_error_and_exit("Failed to execute child process", SERVER_ERROR_CHILD_CREATION);
             }
             close(client_socket_fd);

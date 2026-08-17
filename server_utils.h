@@ -8,11 +8,8 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <time.h>
 
-typedef enum { USER, SUPERUSER } UserType;
-
-typedef struct {
+typedef struct User {
     char username[USERNAME_MAX_LENGTH];
     char password[PASSWORD_MAX_LENGTH];
     UserType user_type;

@@ -1,6 +1,6 @@
 CC=gcc
-SERVER_MODULES_SRC = modules/server_authentication.c modules/server_user.c modules/server_superuser.c
-CLIENT_MODULES_SRC = modules/client_authentication.c modules/client_user.c modules/client_superuser.c
+SERVER_MODULES_SRC = modules/server_guest.c modules/server_user.c modules/server_superuser.c
+CLIENT_MODULES_SRC = modules/client_guest.c modules/client_user.c modules/client_superuser.c
 
 all: server client server_child
 

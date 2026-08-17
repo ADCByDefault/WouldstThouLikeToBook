@@ -24,9 +24,9 @@
 
 // defining server defaults
 #define SERVER_SETTINGS_FILE_NAME "./server_settings.txt"
-#define USERS_FILE_NAME "./users.bat"
-#define BOOKINGS_FILE_NAME "./bookings.bat"
-#define ROOMS_FILE_NAME "./rooms.bat"
+#define USERS_FILE_NAME "./users.dat"
+#define BOOKINGS_FILE_NAME "./bookings.dat"
+#define ROOMS_FILE_NAME "./rooms.dat"
 // defining server error codes
 #define SERVER_ERROR_WRITE 1
 #define SERVER_ERROR_READ 2
