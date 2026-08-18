@@ -12,6 +12,12 @@
 #include "./lib/protocol.h"
 #include "server_utils.h"
 
+const Handeler HANDLERS[2] = {
+    {OPCODE_LOGIN, handle_login},
+    {OPCODE_SIGNUP, handle_signup},
+    // Add more handlers as needed
+};
+
 struct sockaddr_in initialize_server() {
     FILE *users_file = fopen(USERS_FILE_NAME, "ab");
     if (users_file == NULL) {
@@ -72,52 +78,132 @@ bool setup_for_child_process(int socket_fd) {
     return true;
 }
 
-int login(LoginCredentials *credentials) {
-    FILE *file = fopen(USERS_FILE_NAME, "rb");
+bool lock_writing_for_file(FILE *file) {
     if (file == NULL) {
-        return -200; // Error opening file
+        return false;
     }
-    User user;
-    while (fread(&user, sizeof(User), 1, file) == 1) {
-        if (strcmp(user.username, credentials->username) == 0) {
-            if (strcmp(user.password, credentials->password) == 0) {
-                fclose(file);
-                return (strcmp(user.username, "superuser") == 0) ? 1 : 0; // Logged in as superuser or user
-            } else {
-                fclose(file);
-                return -2; // Incorrect password
+
+    struct flock lock = {0};
+    lock.l_type = F_WRLCK;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = 0;
+    lock.l_len = 0;
+
+    return fcntl(fileno(file), F_SETLKW, &lock) == 0;
+}
+
+void unlock_writing_for_file(FILE *file) {
+    if (file == NULL) {
+        return;
+    }
+
+    fflush(file);
+
+    struct flock unlock = {0};
+    unlock.l_type = F_UNLCK;
+    unlock.l_whence = SEEK_SET;
+    unlock.l_start = 0;
+    unlock.l_len = 0;
+
+    fcntl(fileno(file), F_SETLK, &unlock);
+}
+
+User login(LoginCredentials credentials) {
+    User_Save user_save = {0};
+    User user = {0};
+    FILE *users_file = fopen(USERS_FILE_NAME, "rb");
+    fseek(users_file, 0, SEEK_SET);
+    if (users_file == NULL) {
+        return user; // Error opening users file
+    }
+    while (fread(&user_save, sizeof(User_Save), 1, users_file) == 1) {
+        if (strcmp(user_save.username, credentials.username) == 0) {
+            if (strcmp(user_save.password, credentials.password) != 0) {
+                fclose(users_file);
+                return user; // Incorrect password, return user with empty username
             }
+            snprintf(user.username, USERNAME_MAX_LENGTH, "%s", user_save.username);
+            user.user_type = user_save.user_type;
+            fclose(users_file);
+            return user; // Login successful
+        }
+    }
+    fclose(users_file);
+    return user; // Login failed, return user with empty username
+}
+User signup(LoginCredentials credentials, UserType user_type) {
+    User_Save user_save = {0};
+    User user = {0}; // Initialize user with empty username
+    FILE *users_file = fopen(USERS_FILE_NAME, "ab+");
+    if (users_file == NULL) {
+        return user; // Error opening users file
+    }
+
+    if (!lock_writing_for_file(users_file)) {
+        fclose(users_file);
+        return user; // Error locking users file
+    }
+
+    fseek(users_file, 0, SEEK_SET);
+    while (fread(&user_save, sizeof(User_Save), 1, users_file) == 1) {
+        if (strcmp(user_save.username, credentials.username) == 0) {
+            unlock_writing_for_file(users_file);
+            fclose(users_file);
+            return user; // Username already exists, return user with empty username
         }
     }
 
-    fclose(file);
-    return -1; // User not found
+    // Add new user to the users file
+    snprintf(user_save.username, USERNAME_MAX_LENGTH, "%s", credentials.username);
+    snprintf(user_save.password, PASSWORD_MAX_LENGTH, "%s", credentials.password);
+    user_save.user_type = user_type;
+    fwrite(&user_save, sizeof(User_Save), 1, users_file);
+    unlock_writing_for_file(users_file);
+    fclose(users_file);
+    snprintf(user.username, USERNAME_MAX_LENGTH, "%s", user_save.username);
+    user.user_type = user_save.user_type;
+    return user; // Signup successful
 }
 
-int signup(LoginCredentials *credentials, UserType user_type) {
-    FILE *file = fopen(USERS_FILE_NAME, "ab+");
-    if (file == NULL) {
-        return -200; // Error opening file
+void handle_login(int socket_fd, User *user, char *payload_buffer, size_t payload_size) {
+    if (payload_size == 0 || payload_buffer == NULL) {
+        print_error_and_exit("Invalid payload for login operation", SERVER_CHILD_ERROR_READ);
     }
-    fseek(file, 0, SEEK_SET);
-    User user;
-    while (fread(&user, sizeof(User), 1, file) == 1) {
-        if (strcmp(user.username, credentials->username) == 0) {
-            fclose(file);
-            return -1; // User already exists
-        }
+    LoginCredentials credentials = parse_credentials(payload_buffer);
+    User logged_in_user = login(credentials);
+    Header response_header = {0};
+    if (strlen(logged_in_user.username) == 0 || strcmp(logged_in_user.username, credentials.username) != 0) {
+        response_header.operation = OPCODE_LOGIN_ERROR;
+        response_header.payload_size = 0;
+        send_header_and_payload(socket_fd, &response_header, NULL);
+        return;
     }
-
-    // Add new user
-    User new_user;
-    strncpy(new_user.username, credentials->username, USERNAME_MAX_LENGTH);
-    strncpy(new_user.password, credentials->password, PASSWORD_MAX_LENGTH);
-    new_user.user_type = user_type;
-    fwrite(&new_user, sizeof(User), 1, file);
-    fclose(file);
-    return 0; // Signup successful
+    *user = logged_in_user;
+    char response_payload[MAX_BUFFER_SIZE];
+    size_t response_payload_size = to_string_user(response_payload, MAX_BUFFER_SIZE, user);
+    response_header.operation = OPCODE_OK;
+    response_header.payload_size = response_payload_size;
+    send_header_and_payload(socket_fd, &response_header, response_payload);
+}
+void handle_signup(int socket_fd, User *user, char *payload_buffer, size_t payload_size) {
+    if (payload_size == 0 || payload_buffer == NULL) {
+        print_error_and_exit("Invalid payload for signup operation", SERVER_CHILD_ERROR_READ);
+    }
+    LoginCredentials credentials = parse_credentials(payload_buffer);
+    User signed_up_user = signup(credentials, USER);
+    Header response_header = {0};
+    if (strlen(signed_up_user.username) == 0 || strcmp(signed_up_user.username, credentials.username) != 0) {
+        response_header.operation = OPCODE_SIGNUP_ERROR;
+        response_header.payload_size = 0;
+        send_header_and_payload(socket_fd, &response_header, NULL);
+        return;
+    }
+    *user = signed_up_user;
+    char response_payload[MAX_BUFFER_SIZE];
+    size_t response_payload_size = to_string_user(response_payload, MAX_BUFFER_SIZE, user);
+    response_header.operation = OPCODE_OK;
+    response_header.payload_size = response_payload_size;
+    send_header_and_payload(socket_fd, &response_header, response_payload);
 }
 
-int signup_user(LoginCredentials *credentials) { return signup(credentials, USER); }
-
-int signup_superuser(LoginCredentials *credentials) { return signup(credentials, SUPERUSER); }
+// EOF

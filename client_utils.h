@@ -9,11 +9,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-typedef struct User {
-    char username[USERNAME_MAX_LENGTH];
-    UserType user_type;
-} User;
-
 typedef void (*OperationHandler)(int socket_fd, User *user);
 
 typedef struct Handeler {
@@ -21,7 +16,7 @@ typedef struct Handeler {
     OperationHandler handler;
 } Handeler;
 
-extern const Handeler HANDLERS[];
+extern const Handeler HANDLERS[2];
 
 // initializes the client socket and returns the socket file descriptor
 struct sockaddr_in initialize_client();

@@ -33,21 +33,41 @@ int main(int argc, char const *argv[]) {
     }
 
     int user_input;
+    Handeler operation_handler = {OPCODE_UNDEFINED, NULL};
+    size_t operation_count = sizeof(HANDLERS) / sizeof(HANDLERS[0]);
     print_info(user.user_type);
     // Main loop for user interaction
     do {
+        operation_handler.opcode = OPCODE_UNDEFINED;
         printf("\nEnter input: ");
         scanf("%d", &user_input);
-        flush_stdin(); // Clear the input buffer
-        if (user_input == -1) {
+        flush_stdin();          // Clear the input buffer
+        if (user_input == -1) { // Exit the application
             printf("Exiting the application.\n");
             break;
         }
-        if (user_input == 0) {
+        if (user_input == 0) { // Print application information
             print_info(user.user_type);
             continue;
         }
-        
+        // Find the corresponding handler for the user input
+        for (size_t i = 0; i < operation_count; i++) {
+            if (HANDLERS[i].opcode == user_input) {
+                operation_handler = HANDLERS[i];
+                break;
+            }
+        }
+        // if invalid input, print error message and continue the loop
+        if (operation_handler.opcode == OPCODE_UNDEFINED) {
+            printf("Invalid input. Please try again.\n");
+            continue;
+        }
+        if (operation_handler.handler == NULL) {
+            printf("No handler defined for this operation. Please try again.\n");
+            continue;
+        }
+        // Call the handler function for the selected operation
+        operation_handler.handler(socket_fd, &user);
     } while (user_input != -1);
     close(socket_fd);
 

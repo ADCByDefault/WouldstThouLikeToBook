@@ -16,8 +16,8 @@ const OpcodeDescription OPCODE_DESCRIPTIONS[] = {{OPCODE_UNDEFINED, "Undefined"}
                                                  {OPCODE_LOGIN_ERROR, "Login Error"}, {OPCODE_BOOKING_ERROR, "Booking Error"},
                                                  {OPCODE_LIST_ERROR, "List Error"}};
 
-void to_string_header(char *buffer, size_t buffer_size, Header *header) {
-    snprintf(buffer, buffer_size, "Operation: %u Payload Size: %lu", header->operation, header->payload_size);
+size_t to_string_header(char *buffer, size_t buffer_size, Header *header) {
+    return snprintf(buffer, buffer_size, "Operation: %u Payload Size: %lu", header->operation, header->payload_size);
 }
 Header parse_header(char *buffer) {
     Header header = {0};
@@ -29,13 +29,52 @@ Header parse_header(char *buffer) {
     return header;
 }
 
+LoginCredentials sanitize_credentials(char *username, char *password) {
+    LoginCredentials credentials = {0};
+    int username_length = strnlen(username, USERNAME_MAX_LENGTH);
+    int password_length = strnlen(password, PASSWORD_MAX_LENGTH);
+    for (int i = 0; i < username_length; i++) {
+        if (username[i] == '\n' || username[i] == '\r') {
+            username[i] = '\0';
+            break;
+        }
+        if (username[i] == ':' || username[i] == ' ') {
+            username[i] = '.';
+        }
+    }
+    for (int i = 0; i < password_length; i++) {
+        if (password[i] == '\n' || password[i] == '\r') {
+            password[i] = '\0';
+            break;
+        }
+        if (password[i] == ':' || password[i] == '\n' || password[i] == '\r' || password[i] == ' ') {
+            password[i] = '.';
+        }
+    }
+    snprintf(credentials.username, USERNAME_MAX_LENGTH, "%s", username);
+    snprintf(credentials.password, PASSWORD_MAX_LENGTH, "%s", password);
+    return credentials;
+}
 size_t to_string_credentials(char *buffer, size_t buffer_size, LoginCredentials *credentials) {
+    *credentials = sanitize_credentials(credentials->username, credentials->password);
     return snprintf(buffer, buffer_size, "%s:%s", credentials->username, credentials->password);
 }
 LoginCredentials parse_credentials(char *buffer) {
     LoginCredentials credentials = {0};
     sscanf(buffer, "%[^:]:%[^:]", credentials.username, credentials.password);
+    credentials = sanitize_credentials(credentials.username, credentials.password);
     return credentials;
+}
+
+size_t to_string_user(char *buffer, size_t buffer_size, User *user) {
+    return snprintf(buffer, buffer_size, "%s:%d", user->username, user->user_type);
+}
+User parse_user(char *buffer) {
+    User user = {0};
+    int user_type;
+    sscanf(buffer, "%[^:]:%d", user.username, &user_type);
+    user.user_type = user_type;
+    return user;
 }
 
 // format:
@@ -121,7 +160,6 @@ size_t read_exact(int fd, char *buffer, size_t size) {
     }
     return total_read;
 }
-
 size_t send_header_and_payload(int fd, Header *header, const char *payload) {
 
     if (!header) {

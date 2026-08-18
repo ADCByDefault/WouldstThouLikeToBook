@@ -9,6 +9,10 @@
 #define HEADER_SIZE sizeof(Header)
 
 typedef enum UserType { GUEST, USER, SUPERUSER } UserType;
+typedef struct User {
+    char username[USERNAME_MAX_LENGTH];
+    UserType user_type;
+} User;
 
 typedef enum OpCode {
     OPCODE_UNDEFINED = 0,
@@ -20,6 +24,7 @@ typedef enum OpCode {
     // server opcodes
     OPCODE_OK = 200,
     OPCODE_LOGIN_ERROR,
+    OPCODE_SIGNUP_ERROR,
     OPCODE_BOOKING_ERROR,
     OPCODE_LIST_ERROR,
 } OpCode;
@@ -32,7 +37,6 @@ typedef struct OpcodeDescription {
 extern const OpCode GUEST_OPCODES[3];
 extern const OpCode USER_OPCODES[2];
 extern const OpCode SUPERUSER_OPCODES[2];
-
 extern const OpcodeDescription OPCODE_DESCRIPTIONS[];
 
 typedef enum BookingStatus { PENDING, APPROVED, REJECTED } BookingStatus;
@@ -57,11 +61,16 @@ typedef struct Header {
     size_t payload_size;
 } Header;
 
-void to_string_header(char *buffer, size_t buffer_size, Header *header);
+// Header to string and parse functions
+size_t to_string_header(char *buffer, size_t buffer_size, Header *header);
 Header parse_header(char *buffer);
-
+// Credentials to string and parse functions
+LoginCredentials sanitize_credentials(char *username, char *password);
 size_t to_string_credentials(char *buffer, size_t buffer_size, LoginCredentials *credentials);
 LoginCredentials parse_credentials(char *buffer);
+// User to string and parse functions
+size_t to_string_user(char *buffer, size_t buffer_size, User *user);
+User parse_user(char *buffer);
 
 size_t to_string_booking(char *buffer, size_t buffer_size, Booking *booking);
 Booking parse_booking(char *buffer);

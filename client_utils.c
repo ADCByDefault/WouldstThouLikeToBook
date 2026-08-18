@@ -6,7 +6,7 @@
 #include <netinet/in.h>
 #include <stdio.h>
 
-const Handeler HANDLERS[] = {
+const Handeler HANDLERS[2] = {
     {OPCODE_LOGIN, handle_login},
     {OPCODE_SIGNUP, handle_signup},
     // Add more handlers as needed
@@ -49,8 +49,8 @@ void print_info(UserType user_type) {
     printf("Client Application Information:\n");
     printf("Enter 0 to print this information.\n");
     printf("Enter -1 to exit the application.\n");
-    printf("Max Username Length: %d\n", USERNAME_MAX_LENGTH);
-    printf("Max Password Length: %d\n", PASSWORD_MAX_LENGTH);
+    printf("Max Username Length: %d, ':' and ' ' are converted to '.'\n", USERNAME_MAX_LENGTH);
+    printf("Max Password Length: %d, ':' and ' ' are converted to '.'\n", PASSWORD_MAX_LENGTH);
     print_can_do_operations_by_type(user_type);
 }
 void print_guest_can_do_operations() {
@@ -94,7 +94,8 @@ void print_can_do_operations_by_type(UserType user_type) {
 }
 
 void handle_login(int socket_fd, User *user) {
-    printf("Handeling login\n");
+    printf("Handling login\n");
+    // getting username and password from user input
     LoginCredentials credentials = {0};
     char username[USERNAME_MAX_LENGTH];
     char password[PASSWORD_MAX_LENGTH];
@@ -102,10 +103,8 @@ void handle_login(int socket_fd, User *user) {
     fgets(username, USERNAME_MAX_LENGTH, stdin);
     printf("Enter password: ");
     fgets(password, PASSWORD_MAX_LENGTH, stdin);
-    username[strcspn(username, "\n")] = 0;
-    password[strcspn(password, "\n")] = 0;
-    snprintf(credentials.username, USERNAME_MAX_LENGTH, "%s", username);
-    snprintf(credentials.password, PASSWORD_MAX_LENGTH, "%s", password);
+    // send login request to server
+    credentials = sanitize_credentials(username, password);
     char payload_buffer[MAX_BUFFER_SIZE];
     size_t payload_size = to_string_credentials(payload_buffer, MAX_BUFFER_SIZE, &credentials);
     Header header = {OPCODE_LOGIN, payload_size};
@@ -117,14 +116,21 @@ void handle_login(int socket_fd, User *user) {
     if (bytes_read < HEADER_SIZE) {
         print_error_and_exit("Failed to read response header from server. Terminating.", CLIENT_ERROR_READ);
     }
+    // Response (sending is successful)
     Header response_header = parse_header(payload_buffer);
-    if (response_header.operation == OPCODE_OK) {
-        // To be implented
-    } else if (response_header.operation == OPCODE_LOGIN_ERROR) {
-        printf("Login failed. Please check your credentials.\n");
-    } else {
-        printf("Received unexpected response from server: %s\n", get_opcode_description(response_header.operation));
+    if (response_header.operation == OPCODE_LOGIN_ERROR) {
+        printf("login failed, please check your username and password\n");
+        return;
     }
+    if (response_header.operation != OPCODE_OK || response_header.payload_size == 0) {
+        print_error_and_exit("Received unexpected response from server. Terminating.", CLIENT_ERROR_READ);
+    }
+    bytes_read = read_exact(socket_fd, payload_buffer, response_header.payload_size);
+    if (bytes_read < response_header.payload_size) {
+        print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
+    }
+    *user = parse_user(payload_buffer);
+    printf("Login successful. Logged in as: %s with type: %d\n", user->username, user->user_type);
 }
 void handle_signup(int socket_fd, User *user) {
     printf("Handling signup for user: %s with type: %d\n", user->username, user->user_type);

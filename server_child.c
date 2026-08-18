@@ -13,7 +13,7 @@
 int main(int argc, char const *argv[]) {
     int socket_fd = SERVER_CHILD_DEFAULT_SOCKET_FD;
     char buffer[MAX_BUFFER_SIZE];
-    User user = {"", "", GUEST};
+    User user = {"", GUEST};
     if (argc != 2) {
         print_error_and_exit("Invalid number of arguments for server_child", SERVER_CHILD_INVALID_ARGUMENTS);
     }
@@ -22,6 +22,7 @@ int main(int argc, char const *argv[]) {
     }
 
     size_t bytes_read;
+    size_t operation_count = sizeof(HANDLERS) / sizeof(HANDLERS[0]);
     while (1) {
         memset(buffer, 0, MAX_BUFFER_SIZE);
         bytes_read = read_exact(socket_fd, buffer, HEADER_SIZE);
@@ -35,6 +36,12 @@ int main(int argc, char const *argv[]) {
         Header header = parse_header(buffer);
         if (header.operation == OPCODE_UNDEFINED) {
             print_error_and_exit("Received undefined operation code from client. Terminating.", SERVER_CHILD_ERROR_READ);
+        }
+        for (size_t i = 0; i < operation_count; i++) {
+            if (HANDLERS[i].opcode == header.operation) {
+                HANDLERS[i].handler(socket_fd, &user, buffer + HEADER_SIZE, header.payload_size);
+                break;
+            }
         }
     }
 
