@@ -16,6 +16,7 @@
 int main(int argc, char const *argv[]) {
     // Initialize client settings
     struct sockaddr_in server_address = initialize_client();
+    User user = {"", GUEST};
     char buffer[MAX_BUFFER_SIZE];
     bool is_logged_in = false;
 
@@ -31,12 +32,24 @@ int main(int argc, char const *argv[]) {
         print_error_and_exit("Connection to server failed", CLIENT_ERROR_CONNECTION);
     }
 
-    // lets test if client and server_child exchange messages
-    fgets(buffer, MAX_BUFFER_SIZE, stdin);
-    printf("Sent to server_child: %s\n", buffer);
-    write(socket_fd, buffer, MAX_BUFFER_SIZE);
-    read(socket_fd, buffer, MAX_BUFFER_SIZE);
-    printf("Received from server_child: %s\n", buffer);
+    int user_input;
+    print_info(user.user_type);
+    // Main loop for user interaction
+    do {
+        printf("\nEnter input: ");
+        scanf("%d", &user_input);
+        flush_stdin(); // Clear the input buffer
+        if (user_input == -1) {
+            printf("Exiting the application.\n");
+            break;
+        }
+        if (user_input == 0) {
+            print_info(user.user_type);
+            continue;
+        }
+        
+    } while (user_input != -1);
+    close(socket_fd);
 
     return 0;
 }

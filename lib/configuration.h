@@ -14,7 +14,7 @@
 #define ADDRESS_STRING_SIZE IP_STRING_SIZE + PORT_STRING_SIZE
 
 // defining client defaults
-#define CLIENT_SETTINGS_FILE_NAME "./client_settings.txt"
+#define CLIENT_SETTINGS_FILE_NAME "./.client_settings"
 // definig client error codes
 #define CLIENT_ERROR_WRITE 1
 #define CLIENT_ERROR_READ 2
@@ -23,10 +23,13 @@
 #define CLIENT_ERROR_FORK 5
 
 // defining server defaults
-#define SERVER_SETTINGS_FILE_NAME "./server_settings.txt"
+#define SERVER_SETTINGS_FILE_NAME "./.server_settings"
 #define USERS_FILE_NAME "./users.dat"
 #define BOOKINGS_FILE_NAME "./bookings.dat"
 #define ROOMS_FILE_NAME "./rooms.dat"
+#define KEEPALIVE_IDLE_SECONDS 60
+#define KEEPALIVE_PROBE_COUNT 3
+#define KEEPALIVE_PROBE_INTERVAL_SECONDS 10
 // defining server error codes
 #define SERVER_ERROR_WRITE 1
 #define SERVER_ERROR_READ 2
@@ -41,3 +44,5 @@
 // defining server child error codes
 #define SERVER_CHILD_INVALID_ARGUMENTS 1
 #define SERVER_CHILD_ERROR_SOCKET_FD 2
+#define SERVER_CHILD_ERROR_READ 3
+#define SERVER_CHILD_ERROR_WRITE 4

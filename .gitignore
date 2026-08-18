@@ -1,4 +1,4 @@
-//ignoring compiles files
+./VSCode
 *.o
 *.out
 *.dat

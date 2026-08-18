@@ -3,18 +3,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <time.h>
+#include <unistd.h>
 
 const OpCode GUEST_OPCODES[3] = {OPCODE_LOGIN, OPCODE_SIGNUP, OPCODE_ROOMS_LIST};
 const OpCode USER_OPCODES[2] = {OPCODE_BOOKING, OPCODE_ROOMS_LIST};
 const OpCode SUPERUSER_OPCODES[2] = {OPCODE_SIGNUP, OPCODE_ROOMS_LIST};
+const OpcodeDescription OPCODE_DESCRIPTIONS[] = {{OPCODE_UNDEFINED, "Undefined"},     {OPCODE_LOGIN, "Login"},
+                                                 {OPCODE_SIGNUP, "Signup"},           {OPCODE_BOOKING, "Booking"},
+                                                 {OPCODE_ROOMS_LIST, "Rooms List"},   {OPCODE_OK, "OK"},
+                                                 {OPCODE_LOGIN_ERROR, "Login Error"}, {OPCODE_BOOKING_ERROR, "Booking Error"},
+                                                 {OPCODE_LIST_ERROR, "List Error"}};
 
-void to_string_header(char *buffer, size_t buffer_size, MessageHeader *header) {
-    snprintf(buffer, buffer_size, "Operation: %u Payload Size: %u", header->operation, header->payload_size);
+void to_string_header(char *buffer, size_t buffer_size, Header *header) {
+    snprintf(buffer, buffer_size, "Operation: %u Payload Size: %lu", header->operation, header->payload_size);
 }
-MessageHeader parse_header(char *buffer) {
-    MessageHeader header = {0};
-    if (sscanf(buffer, "Operation: %u, Payload Size: %u", &header.operation, &header.payload_size) != 2) {
+Header parse_header(char *buffer) {
+    Header header = {0};
+    if (sscanf(buffer, "Operation: %u, Payload Size: %lu", &header.operation, &header.payload_size) != 2) {
         if (is_valid_opcode((header.operation))) {
             header.operation = OPCODE_UNDEFINED;
         }
@@ -22,10 +29,10 @@ MessageHeader parse_header(char *buffer) {
     return header;
 }
 
-size_t to_string_login(char *buffer, size_t buffer_size, LoginCredentials *credentials) {
+size_t to_string_credentials(char *buffer, size_t buffer_size, LoginCredentials *credentials) {
     return snprintf(buffer, buffer_size, "%s:%s", credentials->username, credentials->password);
 }
-LoginCredentials parse_login(char *buffer) {
+LoginCredentials parse_credentials(char *buffer) {
     LoginCredentials credentials = {0};
     sscanf(buffer, "%[^:]:%[^:]", credentials.username, credentials.password);
     return credentials;
@@ -92,28 +99,61 @@ bool is_valid_opcode_for_user_by_type(OpCode opcode, UserType user_type) {
         return false;
     }
 }
-
 char *get_opcode_description(OpCode opcode) {
-    switch (opcode) {
-    case OPCODE_UNDEFINED:
-        return "Undefined";
-    case OPCODE_LOGIN:
-        return "Login";
-    case OPCODE_SIGNUP:
-        return "Signup";
-    case OPCODE_BOOKING:
-        return "Booking";
-    case OPCODE_ROOMS_LIST:
-        return "Rooms List";
-    case OPCODE_OK:
-        return "OK";
-    case OPCODE_LOGIN_ERROR:
-        return "Login Error";
-    case OPCODE_BOOKING_ERROR:
-        return "Booking Error";
-    case OPCODE_LIST_ERROR:
-        return "List Error";
-    default:
-        return "Unknown Opcode";
+    size_t num_descriptions = sizeof(OPCODE_DESCRIPTIONS) / sizeof(OPCODE_DESCRIPTIONS[0]);
+    for (size_t i = 0; i < num_descriptions; i++) {
+        if (OPCODE_DESCRIPTIONS[i].opcode == opcode) {
+            return (char *)OPCODE_DESCRIPTIONS[i].description;
+        }
     }
+    return "Unknown operation code";
 }
+
+size_t read_exact(int fd, char *buffer, size_t size) {
+    size_t total_read = 0;
+    while (total_read < size) {
+        fflush(stdout);
+        ssize_t bytes_read = read(fd, buffer + total_read, size - total_read);
+        if (bytes_read <= 0) {
+            return total_read;
+        }
+        total_read += bytes_read;
+    }
+    return total_read;
+}
+
+size_t send_header_and_payload(int fd, Header *header, const char *payload) {
+
+    if (!header) {
+        return 0;
+    }
+
+    char header_buffer[HEADER_SIZE];
+    to_string_header(header_buffer, HEADER_SIZE, header);
+    size_t total_sent = 0;
+
+    // Send header
+    while (total_sent < HEADER_SIZE) {
+        ssize_t bytes_sent = send(fd, header_buffer + total_sent, HEADER_SIZE - total_sent, 0);
+        if (bytes_sent <= 0) {
+            return total_sent;
+        }
+        total_sent += bytes_sent;
+    }
+
+    // send header only if it exists and payload size is greater than 0
+    total_sent = 0;
+    if (header->payload_size > 0 && payload) {
+        while (total_sent < header->payload_size) {
+            ssize_t bytes_sent = send(fd, payload + total_sent, header->payload_size - total_sent, 0);
+            if (bytes_sent <= 0) {
+                break;
+            }
+            total_sent += bytes_sent;
+        }
+    }
+
+    return total_sent + HEADER_SIZE;
+}
+
+// EOF

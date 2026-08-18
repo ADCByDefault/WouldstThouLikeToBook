@@ -5,6 +5,7 @@
 #include <error.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -30,6 +31,10 @@ int main(int argc, char const *argv[]) {
     }
 
     printf("Server socket created successfully: %d\n", server_socket_fd);
+    int resuse_option_value = 1;
+    if (setsockopt(server_socket_fd, SOL_SOCKET, SO_REUSEADDR, &resuse_option_value, sizeof(resuse_option_value)) < 0) {
+        print_error_and_exit("Failed to set SO_REUSEADDR option", SERVER_ERROR_SOCKET_CREATION);
+    }
 
     // Bind and listening server socket to address and port
     if (bind(server_socket_fd, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
@@ -56,6 +61,19 @@ int main(int argc, char const *argv[]) {
         int client_socket_fd = accept(server_socket_fd, (struct sockaddr *)&client_address, &client_address_length);
         if (client_socket_fd < 0) {
             perror("Failed to accept client connection");
+            continue;
+        }
+        // setting keepalive option for the client socket
+        int keepalive = 1;
+        int keepalive_idle_seconds = KEEPALIVE_IDLE_SECONDS;
+        int keepalive_interval_seconds = KEEPALIVE_PROBE_INTERVAL_SECONDS;
+        int keepalive_probe_count = KEEPALIVE_PROBE_COUNT;
+        if (setsockopt(client_socket_fd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0 ||
+            setsockopt(client_socket_fd, IPPROTO_TCP, TCP_KEEPIDLE, &keepalive_idle_seconds, sizeof(keepalive_idle_seconds)) < 0 ||
+            setsockopt(client_socket_fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepalive_interval_seconds, sizeof(keepalive_interval_seconds)) < 0 ||
+            setsockopt(client_socket_fd, IPPROTO_TCP, TCP_KEEPCNT, &keepalive_probe_count, sizeof(keepalive_probe_count)) < 0) {
+            perror("Failed to set keepalive options for client socket");
+            close(client_socket_fd);
             continue;
         }
         int pid = fork();

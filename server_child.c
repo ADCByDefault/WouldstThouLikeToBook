@@ -21,11 +21,25 @@ int main(int argc, char const *argv[]) {
         print_error_and_exit("Invalid socket file descriptor for server_child", SERVER_CHILD_ERROR_SOCKET_FD);
     }
 
-    read(socket_fd, buffer, MAX_BUFFER_SIZE);
-    printf("Received from client: %s\n", buffer);
-    fgets(buffer, MAX_BUFFER_SIZE, stdin);
-    printf("Sent to client: %s\n", buffer);
-    write(socket_fd, buffer, MAX_BUFFER_SIZE);
+    size_t bytes_read;
+    while (1) {
+        memset(buffer, 0, MAX_BUFFER_SIZE);
+        bytes_read = read_exact(socket_fd, buffer, HEADER_SIZE);
+        if (bytes_read < 0) {
+            print_error_and_exit("Failed to read from client. Terminating.", SERVER_CHILD_ERROR_READ);
+        }
+        if (bytes_read != HEADER_SIZE) {
+            print_error_and_exit("Failed to read complete header from client. Terminating.", SERVER_CHILD_ERROR_READ);
+        }
+        printf("Received from client: %s\n", buffer);
+        Header header = parse_header(buffer);
+        if (header.operation == OPCODE_UNDEFINED) {
+            print_error_and_exit("Received undefined operation code from client. Terminating.", SERVER_CHILD_ERROR_READ);
+        }
+    }
+
+    printf("Client disconnected. Terminating.\n");
+    close(socket_fd);
 
     return 0;
 }

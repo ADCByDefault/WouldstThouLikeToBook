@@ -9,16 +9,36 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-typedef struct {
+typedef struct User {
     char username[USERNAME_MAX_LENGTH];
     UserType user_type;
 } User;
+
+typedef void (*OperationHandler)(int socket_fd, User *user);
+
+typedef struct Handeler {
+    OpCode opcode;
+    OperationHandler handler;
+} Handeler;
+
+extern const Handeler HANDLERS[];
 
 // initializes the client socket and returns the socket file descriptor
 struct sockaddr_in initialize_client();
 
 // if error_code == 0 then exit with EXIT_FAILURE
 void print_error_and_exit(const char *error_message, int error_code);
+void flush_stdin();
 
-int login(LoginCredentials *credentials);
-int signup(LoginCredentials *credentials, UserType user_type);
+void print_info(UserType user_type);
+// A string to describe the operations that a GUEST can perform
+void print_guest_can_do_operations();
+// A string to describe the operations that a USER can perform
+void print_user_can_do_operations();
+// A string to describe the operations that a SUPERUSER can perform
+void print_superuser_can_do_operations();
+// A string to describe the operations that a user can perform based on their type
+void print_can_do_operations_by_type(UserType user_type);
+
+void handle_login(int socket_fd, User *user);
+void handle_signup(int socket_fd, User *user);
