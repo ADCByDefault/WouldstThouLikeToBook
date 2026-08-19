@@ -35,6 +35,8 @@ void print_error_and_exit(const char *error_message, int error_code);
 bool setup_for_child_process(int socket_fd);
 bool lock_writing_for_file(FILE *file);
 void unlock_writing_for_file(FILE *file);
+bool lock_reading_for_file(FILE *file);
+void unlock_reading_for_file(FILE *file);
 
 // return User with empty username if login failed, otherwise return User with the given user_type
 User login(LoginCredentials credentials);

@@ -91,7 +91,6 @@ bool lock_writing_for_file(FILE *file) {
 
     return fcntl(fileno(file), F_SETLKW, &lock) == 0;
 }
-
 void unlock_writing_for_file(FILE *file) {
     if (file == NULL) {
         return;
@@ -99,6 +98,31 @@ void unlock_writing_for_file(FILE *file) {
 
     fflush(file);
 
+    struct flock unlock = {0};
+    unlock.l_type = F_UNLCK;
+    unlock.l_whence = SEEK_SET;
+    unlock.l_start = 0;
+    unlock.l_len = 0;
+
+    fcntl(fileno(file), F_SETLK, &unlock);
+}
+bool lock_reading_for_file(FILE *file) {
+    if (file == NULL) {
+        return false;
+    }
+
+    struct flock lock = {0};
+    lock.l_type = F_RDLCK;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = 0;
+    lock.l_len = 0;
+
+    return fcntl(fileno(file), F_SETLKW, &lock) == 0;
+}
+void unlock_reading_for_file(FILE *file) {
+    if (file == NULL) {
+        return;
+    }
     struct flock unlock = {0};
     unlock.l_type = F_UNLCK;
     unlock.l_whence = SEEK_SET;
@@ -116,18 +140,25 @@ User login(LoginCredentials credentials) {
     if (users_file == NULL) {
         return user; // Error opening users file
     }
+    if (!lock_reading_for_file(users_file)) {
+        fclose(users_file);
+        return user; // Error locking users file
+    }
     while (fread(&user_save, sizeof(User_Save), 1, users_file) == 1) {
         if (strcmp(user_save.username, credentials.username) == 0) {
             if (strcmp(user_save.password, credentials.password) != 0) {
+                unlock_reading_for_file(users_file);
                 fclose(users_file);
                 return user; // Incorrect password, return user with empty username
             }
             snprintf(user.username, USERNAME_MAX_LENGTH, "%s", user_save.username);
             user.user_type = user_save.user_type;
+            unlock_reading_for_file(users_file);
             fclose(users_file);
             return user; // Login successful
         }
     }
+    unlock_reading_for_file(users_file);
     fclose(users_file);
     return user; // Login failed, return user with empty username
 }
