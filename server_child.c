@@ -25,22 +25,24 @@ int main(int argc, char const *argv[]) {
     int operation_count = sizeof(HANDLERS) / sizeof(HANDLERS[0]);
     Header header = {0};
     while (1) {
-        memset(buffer, 0, MAX_BUFFER_SIZE);
-        bytes_read = read_exact(socket_fd, buffer, HEADER_SIZE);
+        bytes_read = read_exact(socket_fd, &header, HEADER_SIZE);
         if (bytes_read < 0) {
             print_error_and_exit("Failed to read from client. Terminating.", SERVER_CHILD_ERROR_READ);
         }
         if (bytes_read != HEADER_SIZE) {
             print_error_and_exit("Failed to read complete header from client. Terminating.", SERVER_CHILD_ERROR_READ);
         }
-        printf("Received from client: %s\n", buffer);
-        header = parse_header(buffer);
+        header = header_ntoh(header);
+        printf("From client operation=%d,size=%d\n", header.operation, header.payload_size);
         if (header.operation == OPCODE_UNDEFINED) {
             print_error_and_exit("Received undefined operation code from client. Terminating.", SERVER_CHILD_ERROR_READ);
         }
+        if (!is_valid_opcode_from_client(header.operation)) {
+            print_error_and_exit("Received invalid operation code from client. Terminating.", SERVER_CHILD_ERROR_READ);
+        }
         for (int i = 0; i < operation_count; i++) {
             if (HANDLERS[i].opcode == header.operation) {
-                HANDLERS[i].handler(socket_fd, &user, buffer + HEADER_SIZE, header.payload_size);
+                HANDLERS[i].handler(socket_fd, &user, header);
                 break;
             }
         }

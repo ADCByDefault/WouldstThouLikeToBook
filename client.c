@@ -37,8 +37,8 @@ int main(int argc, char const *argv[]) {
     // Main loop for user interaction
     do {
         printf("\nEnter input: ");
-        scanf("%d", &user_input);
-        flush_stdin();          // Clear the input buffer
+        fgets(buffer, sizeof(buffer), stdin);
+        user_input = atoi(buffer);
         if (user_input == -1) { // Exit the application
             printf("Exiting the application.\n");
             break;
@@ -48,7 +48,7 @@ int main(int argc, char const *argv[]) {
             continue;
         }
         if (!is_valid_opcode_for_user_by_type(user_input, user.user_type)) {
-            printf("Invalid operation for your user type. Please try again.\n");
+            printf("Invalid operation for your user type.\n");
             continue;
         }
         for (int i = 0; i < operation_count; i++) {
@@ -57,7 +57,6 @@ int main(int argc, char const *argv[]) {
                 break;
             }
         }
-        user_input = 0;
     } while (user_input != -1);
     close(socket_fd);
 

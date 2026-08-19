@@ -16,13 +16,13 @@ typedef struct User_Save {
     UserType user_type;
 } User_Save;
 
-typedef void (*OperationHandler)(int socket_fd, User *user, char *payload_buffer, size_t payload_size);
+typedef void (*OperationHandler)(int socket_fd, User *user, Header header);
 typedef struct Handeler {
     OpCode opcode;
     OperationHandler handler;
 } Handeler;
 
-extern const Handeler HANDLERS[2];
+extern const Handeler HANDLERS[4];
 
 // check if users file, rooms file, and bookings file exist, if not create them
 // and try to read server settings
@@ -43,6 +43,13 @@ User login(LoginCredentials credentials);
 // return User with empty username if signup failed, otherwise return User with the given user_type
 User signup(LoginCredentials credentials, UserType user_type);
 // handle login request from client
-void handle_login(int socket_fd, User *user, char *payload_buffer, size_t payload_size);
+void handle_login(int socket_fd, User *user, Header header);
 // handle signup request from client
-void handle_signup(int socket_fd, User *user, char *payload_buffer, size_t payload_size);
+void handle_signup(int socket_fd, User *user, Header header);
+
+// handle create room request from client
+void handle_create_room(int socket_fd, User *user, Header header);
+// returns rooms count
+// first argument is pointer to the array of rooms
+int get_rooms_list(Room **rooms_list);
+void handle_list_rooms(int socket_fd, User *user, Header header);

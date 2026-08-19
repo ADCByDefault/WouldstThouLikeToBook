@@ -17,3 +17,6 @@ server: server.c $(LIBS) $(SERVER_UTILS)
 
 clean:
 	rm -f *.o server server_child client
+
+clean-data:
+	rm -f data/users.dat data/rooms.dat data/bookings.dat

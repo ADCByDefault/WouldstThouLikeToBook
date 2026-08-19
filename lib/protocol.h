@@ -2,16 +2,18 @@
 
 #include "./configuration.h"
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
-#define HEADER_SIZE sizeof("Operation: 000 Payload Size: 0000")
+#define HEADER_SIZE sizeof(Header)
 
-typedef enum UserType { GUEST=0, USER=1, SUPERUSER=2 } UserType;
+typedef enum UserType { GUEST = 0, USER = 1, SUPERUSER = 2 } UserType;
 typedef struct User {
     char username[USERNAME_MAX_LENGTH];
-    UserType user_type;
+    uint8_t user_type;
 } User;
 
 typedef enum OpCode {
@@ -21,12 +23,15 @@ typedef enum OpCode {
     OPCODE_SIGNUP,
     OPCODE_BOOKING,
     OPCODE_ROOMS_LIST,
+    // client opcodes specific to superuser
+    OPCODE_CREATE_ROOM = 150,
     // server opcodes
     OPCODE_OK = 200,
     OPCODE_LOGIN_ERROR,
     OPCODE_SIGNUP_ERROR,
     OPCODE_BOOKING_ERROR,
     OPCODE_LIST_ERROR,
+    OPCODE_CREATE_ROOM_ERROR,
 } OpCode;
 
 typedef struct OpcodeDescription {
@@ -34,21 +39,26 @@ typedef struct OpcodeDescription {
     const char *description;
 } OpcodeDescription;
 
-extern const OpCode GUEST_OPCODES[3];
+extern const OpCode GUEST_OPCODES[5];
 extern const OpCode USER_OPCODES[2];
-extern const OpCode SUPERUSER_OPCODES[2];
+extern const OpCode SUPERUSER_OPCODES[3];
 extern const OpcodeDescription OPCODE_DESCRIPTIONS[];
 
-typedef enum BookingStatus { PENDING, APPROVED, REJECTED } BookingStatus;
+typedef struct Room {
+    uint32_t room_id;
+    char room_name[ROOM_NAME_MAX_LENGTH];
+} Room;
 
+typedef enum BookingStatus { PENDING = 0, APPROVED = 1, REJECTED = 2 } BookingStatus;
 typedef struct Booking {
-    uint booking_id;
+    uint32_t booking_id;
+    uint32_t room_id;
     char username[USERNAME_MAX_LENGTH];
     char room_name[ROOM_NAME_MAX_LENGTH];
-    time_t date;
-    time_t start_time;
-    time_t end_time;
-    BookingStatus status;
+    uint64_t date;
+    uint64_t start_time;
+    uint64_t end_time;
+    uint8_t status;
 } Booking;
 
 typedef struct LoginCredentials {
@@ -57,26 +67,26 @@ typedef struct LoginCredentials {
 } LoginCredentials;
 
 typedef struct Header {
-    OpCode operation;
-    size_t payload_size;
+    uint32_t operation;
+    uint32_t payload_size;
 } Header;
 
-// Header to string and parse functions
-int to_string_header(char *buffer, size_t buffer_size, Header header);
-Header parse_header(char *buffer);
-// Credentials to string and parse functions
-LoginCredentials sanitize_credentials(char *username, char *password);
-int to_string_credentials(char *buffer, size_t buffer_size, LoginCredentials credentials);
-LoginCredentials parse_credentials(char *buffer);
-// User to string and parse functions
-int to_string_user(char *buffer, size_t buffer_size, User user);
-User parse_user(char *buffer);
+Header header_hton(Header header);
+Header header_ntoh(Header header);
+LoginCredentials credentials_hton(LoginCredentials credentials);
+LoginCredentials credentials_ntoh(LoginCredentials credentials);
+User user_hton(User user);
+User user_ntoh(User user);
+Room room_hton(Room room);
+Room room_ntoh(Room room);
+Booking booking_hton(Booking booking);
+Booking booking_ntoh(Booking booking);
 
-int to_string_booking(char *buffer, size_t buffer_size, Booking booking);
-Booking parse_booking(char *buffer);
+// returns sanitized credentials
+void sanitize_string(char *str, size_t max_length);
+LoginCredentials sanitize_credentials(LoginCredentials credentials);
 
 bool is_valid_opcode_from_client(OpCode opcode);
-bool is_valid_opcode_from_server(OpCode opcode);
 bool is_valid_opcode(OpCode opcode);
 bool is_valid_opcode_for_guest(OpCode opcode);
 bool is_valid_opcode_for_user(OpCode opcode);
@@ -86,7 +96,7 @@ char *get_opcode_description(OpCode opcode);
 
 // Reads exactly 'size' bytes from the file descriptor 'fd' into 'buffer'.
 // Returns the number of bytes read
-int read_exact(int fd, char *buffer, size_t size);
+int read_exact(int fd, void *buffer, uint32_t size);
 // Sends the header and payload to the file descriptor 'fd'.
 // Returns the total number of bytes sent (header + payload)
 int send_header_and_payload(int fd, Header header, const char *payload);

@@ -1,5 +1,10 @@
 #include "protocol.h"
+#include <arpa/inet.h>
+#include <endian.h>
+#include <fcntl.h>
+#include <netinet/in.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,110 +12,94 @@
 #include <time.h>
 #include <unistd.h>
 
-const OpCode GUEST_OPCODES[3] = {OPCODE_LOGIN, OPCODE_SIGNUP, OPCODE_ROOMS_LIST};
+// for testing purposes guest can do anything
+const OpCode GUEST_OPCODES[5] = {OPCODE_LOGIN, OPCODE_SIGNUP, OPCODE_ROOMS_LIST, OPCODE_BOOKING, OPCODE_CREATE_ROOM};
 const OpCode USER_OPCODES[2] = {OPCODE_BOOKING, OPCODE_ROOMS_LIST};
-const OpCode SUPERUSER_OPCODES[2] = {OPCODE_SIGNUP, OPCODE_ROOMS_LIST};
-const OpcodeDescription OPCODE_DESCRIPTIONS[] = {{OPCODE_UNDEFINED, "Undefined"},     {OPCODE_LOGIN, "Login"},
-                                                 {OPCODE_SIGNUP, "Signup"},           {OPCODE_BOOKING, "Booking"},
-                                                 {OPCODE_ROOMS_LIST, "Rooms List"},   {OPCODE_OK, "OK"},
-                                                 {OPCODE_LOGIN_ERROR, "Login Error"}, {OPCODE_BOOKING_ERROR, "Booking Error"},
-                                                 {OPCODE_LIST_ERROR, "List Error"}};
+const OpCode SUPERUSER_OPCODES[3] = {OPCODE_SIGNUP, OPCODE_ROOMS_LIST, OPCODE_CREATE_ROOM};
+const OpcodeDescription OPCODE_DESCRIPTIONS[] = {{OPCODE_UNDEFINED, "Undefined"},
+                                                 {OPCODE_LOGIN, "Login"},
+                                                 {OPCODE_SIGNUP, "Signup"},
+                                                 {OPCODE_BOOKING, "Booking"},
+                                                 {OPCODE_ROOMS_LIST, "Rooms List"},
+                                                 {OPCODE_OK, "OK"},
+                                                 {OPCODE_LOGIN_ERROR, "Login Error"},
+                                                 {OPCODE_SIGNUP_ERROR, "Signup Error"},
+                                                 {OPCODE_BOOKING_ERROR, "Booking Error"},
+                                                 {OPCODE_LIST_ERROR, "List Error"},
+                                                 {OPCODE_CREATE_ROOM, "Create Room"},
+                                                 {OPCODE_CREATE_ROOM_ERROR, "Create Room Error"}};
 
-// returns current logical buffer size
-int to_string_header(char *buffer, size_t buffer_size, Header header) {
-    int size = snprintf(buffer, buffer_size, "Operation: %03u Payload Size: %04zu", header.operation, header.payload_size);
-    return size < 0 ? size : strlen(buffer) + 1; // +1 for null terminator
-}
-Header parse_header(char *buffer) {
-    Header header = {0};
-    unsigned int operation;
-    size_t payload_size;
-    if (sscanf(buffer, "Operation: %03u Payload Size: %04zu", &operation, &payload_size) == 2) {
-        header.operation = (OpCode)operation;
-        header.payload_size = payload_size;
-    }
+Header header_hton(Header header) {
+    header.operation = htonl(header.operation);
+    header.payload_size = htonl(header.payload_size);
     return header;
 }
-
-LoginCredentials sanitize_credentials(char *username, char *password) {
-    LoginCredentials credentials = {0};
-    int username_length = strnlen(username, USERNAME_MAX_LENGTH);
-    int password_length = strnlen(password, PASSWORD_MAX_LENGTH);
-    char sanitized_username[USERNAME_MAX_LENGTH];
-    char sanitized_password[PASSWORD_MAX_LENGTH];
-    strncpy(sanitized_username, username, username_length);
-    sanitized_username[username_length] = '\0';
-    strncpy(sanitized_password, password, password_length);
-    sanitized_password[password_length] = '\0';
-    for (int i = 0; i < username_length; i++) {
-        if (sanitized_username[i] == '\n' || sanitized_username[i] == '\r') {
-            sanitized_username[i] = '\0';
-            break;
-        }
-        if (sanitized_username[i] == ':' || sanitized_username[i] == ' ') {
-            sanitized_username[i] = '.';
-        }
-    }
-    for (int i = 0; i < password_length; i++) {
-        if (sanitized_password[i] == '\n' || sanitized_password[i] == '\r') {
-            sanitized_password[i] = '\0';
-            break;
-        }
-        if (sanitized_password[i] == ':' || sanitized_password[i] == ' ') {
-            sanitized_password[i] = '.';
-        }
-    }
-    snprintf(credentials.username, USERNAME_MAX_LENGTH, "%s", sanitized_username);
-    snprintf(credentials.password, PASSWORD_MAX_LENGTH, "%s", sanitized_password);
-    return credentials;
+Header header_ntoh(Header header) {
+    header.operation = ntohl(header.operation);
+    header.payload_size = ntohl(header.payload_size);
+    return header;
 }
-int to_string_credentials(char *buffer, size_t buffer_size, LoginCredentials credentials) {
-    credentials = sanitize_credentials(credentials.username, credentials.password);
-    int size = snprintf(buffer, buffer_size, "%s:%s", credentials.username, credentials.password);
-    return size < 0 ? size : strlen(buffer) + 1; // +1 for null terminator
+LoginCredentials credentials_hton(LoginCredentials credentials) { return credentials; }
+LoginCredentials credentials_ntoh(LoginCredentials credentials) { return credentials; }
+User user_hton(User user) { return user; }
+User user_ntoh(User user) { return user; }
+Room room_hton(Room room) {
+    room.room_id = htonl(room.room_id);
+    return room;
 }
-LoginCredentials parse_credentials(char *buffer) {
-    LoginCredentials credentials = {0};
-    if (sscanf(buffer, "%31[^:]:%31[^:]", credentials.username, credentials.password) == 2) {
-        credentials = sanitize_credentials(credentials.username, credentials.password);
-    }
-    return credentials;
+Room room_ntoh(Room room) {
+    room.room_id = ntohl(room.room_id);
+    return room;
 }
-
-int to_string_user(char *buffer, size_t buffer_size, User user) {
-    int size = snprintf(buffer, buffer_size, "%s:%d", user.username, user.user_type);
-    return size < 0 ? size : strlen(buffer) + 1; // +1 for null terminator
+Booking booking_hton(Booking booking) {
+    booking.booking_id = htonl(booking.booking_id);
+    booking.room_id = htonl(booking.room_id);
+    booking.date = htobe64(booking.date);
+    booking.start_time = htobe64(booking.start_time);
+    booking.end_time = htobe64(booking.end_time);
+    return booking;
 }
-User parse_user(char *buffer) {
-    User user = {0};
-    int user_type = GUEST;
-    sscanf(buffer, "%31[^:]:%d", user.username, &user_type);
-    user.user_type = user_type;
-    return user;
-}
-
-// format:
-// "Booking:booking_id,room_name,username,date,start_time,end_time,status"
-int to_string_booking(char *buffer, size_t buffer_size, Booking booking) {
-    int size = snprintf(buffer, buffer_size, "Booking:%u,%s,%s,%ld,%ld,%ld,%u", booking.booking_id, booking.room_name, booking.username,
-                        booking.date, booking.start_time, booking.end_time, booking.status);
-    return size < 0 ? size : strlen(buffer) + 1; // +1 for null terminator
-}
-Booking parse_booking(char *buffer) {
-    Booking booking = {0};
-    sscanf(buffer, "Booking:%u,%s,%s,%ld,%ld,%ld,%u", &booking.booking_id, booking.room_name, booking.username, &booking.date,
-           &booking.start_time, &booking.end_time, &booking.status);
+Booking booking_ntoh(Booking booking) {
+    booking.booking_id = ntohl(booking.booking_id);
+    booking.room_id = ntohl(booking.room_id);
+    booking.date = be64toh(booking.date);
+    booking.start_time = be64toh(booking.start_time);
+    booking.end_time = be64toh(booking.end_time);
     return booking;
 }
 
-bool is_valid_opcode_from_client(OpCode opcode) {
-    return opcode == OPCODE_LOGIN || opcode == OPCODE_SIGNUP || opcode == OPCODE_BOOKING || opcode == OPCODE_ROOMS_LIST;
+void sanitize_string(char *str, size_t max_length) {
+    int length = strnlen(str, max_length);
+    str[length] = '\0';
+    for (int i = 0; i < length; i++) {
+        if (str[i] == '\n' || str[i] == '\r') {
+            str[i] = '\0';
+            break;
+        }
+        if (str[i] == ':' || str[i] == ' ') {
+            str[i] = '.';
+        }
+    }
 }
-bool is_valid_opcode_from_server(OpCode opcode) {
-    return opcode == OPCODE_OK || opcode == OPCODE_LOGIN_ERROR || opcode == OPCODE_BOOKING_ERROR || opcode == OPCODE_LIST_ERROR;
+LoginCredentials sanitize_credentials(LoginCredentials credentials) {
+    sanitize_string(credentials.username, USERNAME_MAX_LENGTH);
+    sanitize_string(credentials.password, PASSWORD_MAX_LENGTH);
+    return credentials;
+}
+
+bool is_valid_opcode_from_client(OpCode opcode) {
+    if (is_valid_opcode_for_guest(opcode) || is_valid_opcode_for_user(opcode) || is_valid_opcode_for_superuser(opcode)) {
+        return true;
+    }
+    return false;
 }
 bool is_valid_opcode(OpCode opcode) {
-    return is_valid_opcode_from_client(opcode) || is_valid_opcode_from_server(opcode) || opcode == OPCODE_UNDEFINED;
+    for (int i = 0; i < sizeof(OPCODE_DESCRIPTIONS) / sizeof(OPCODE_DESCRIPTIONS[0]); i++) {
+        if (OPCODE_DESCRIPTIONS[i].opcode == opcode) {
+            return true;
+        }
+    }
+    return false;
 }
 bool is_valid_opcode_for_guest(OpCode opcode) {
     size_t num_opcodes = sizeof(GUEST_OPCODES) / sizeof(GUEST_OPCODES[0]);
@@ -161,10 +150,9 @@ char *get_opcode_description(OpCode opcode) {
     return "Unknown operation code";
 }
 
-int read_exact(int fd, char *buffer, size_t size) {
+int read_exact(int fd, void *buffer, uint32_t size) {
     int total_read = 0;
     while (total_read < size) {
-        fflush(stdout);
         int bytes_read = read(fd, buffer + total_read, size - total_read);
         if (bytes_read <= 0) {
             return total_read;
@@ -175,29 +163,27 @@ int read_exact(int fd, char *buffer, size_t size) {
 }
 int send_header_and_payload(int fd, Header header, const char *payload) {
 
-    char header_buffer[HEADER_SIZE];
-    to_string_header(header_buffer, HEADER_SIZE, header);
     int total_sent = 0;
-
     // Send header
+    Header network_header = header_hton(header);
     while (total_sent < HEADER_SIZE) {
-        int bytes_sent = send(fd, header_buffer + total_sent, HEADER_SIZE - total_sent, 0);
+        int bytes_sent = send(fd, (const char *)&network_header + total_sent, HEADER_SIZE - total_sent, 0);
         if (bytes_sent <= 0) {
             return total_sent;
         }
         total_sent += bytes_sent;
     }
-
-    // send header only if it exists and payload size is greater than 0
+    // send payload only if it exists and payload size is greater than 0
     total_sent = 0;
-    if (header.payload_size > 0 && payload) {
-        while (total_sent < header.payload_size) {
-            int bytes_sent = send(fd, payload + total_sent, header.payload_size - total_sent, 0);
-            if (bytes_sent <= 0) {
-                break;
-            }
-            total_sent += bytes_sent;
+    if (header.payload_size <= 0 || !payload) {
+        return HEADER_SIZE;
+    }
+    while (total_sent < header.payload_size) {
+        int bytes_sent = send(fd, (const char *)payload + total_sent, header.payload_size - total_sent, 0);
+        if (bytes_sent <= 0) {
+            break;
         }
+        total_sent += bytes_sent;
     }
 
     return total_sent + HEADER_SIZE;

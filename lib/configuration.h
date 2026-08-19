@@ -23,6 +23,7 @@
 #define CLIENT_ERROR_SOCKET_CREATION 3
 #define CLIENT_ERROR_CONNECTION 4
 #define CLIENT_ERROR_FORK 5
+#define CLIENT_ERROR_MEMORY_ALLOCATION 6
 
 // defining server defaults
 #define SERVER_SETTINGS_FILE_NAME "./.server_settings"

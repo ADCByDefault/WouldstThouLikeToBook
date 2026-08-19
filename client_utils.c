@@ -6,9 +6,11 @@
 #include <netinet/in.h>
 #include <stdio.h>
 
-const Handeler HANDLERS[2] = {
+const Handeler HANDLERS[4] = {
     {OPCODE_LOGIN, handle_login},
     {OPCODE_SIGNUP, handle_signup},
+    {OPCODE_ROOMS_LIST, handle_list_rooms},
+    {OPCODE_CREATE_ROOM, handle_create_room},
     // Add more handlers as needed
 };
 
@@ -100,81 +102,145 @@ void print_can_do_operations_by_type(UserType user_type) {
 void handle_login(int socket_fd, User *user) {
     // getting username and password from user input
     LoginCredentials credentials = {0};
-    char username[USERNAME_MAX_LENGTH];
-    char password[PASSWORD_MAX_LENGTH];
     printf("Enter username: ");
-    fgets(username, USERNAME_MAX_LENGTH, stdin);
+    fgets(credentials.username, USERNAME_MAX_LENGTH, stdin);
     printf("Enter password: ");
-    fgets(password, PASSWORD_MAX_LENGTH, stdin);
+    fgets(credentials.password, PASSWORD_MAX_LENGTH, stdin);
     // send login request to server
-    credentials = sanitize_credentials(username, password);
-    char payload_buffer[MAX_BUFFER_SIZE];
-    size_t payload_size = to_string_credentials(payload_buffer, MAX_BUFFER_SIZE, credentials);
-    Header header = {OPCODE_LOGIN, payload_size};
-    size_t bytes_sent = send_header_and_payload(socket_fd, header, payload_buffer);
-    if (bytes_sent < HEADER_SIZE + payload_size) {
+    credentials = credentials_hton(sanitize_credentials(credentials));
+    Header header = {OPCODE_LOGIN, sizeof(credentials)};
+    int bytes_sent = send_header_and_payload(socket_fd, header, (const char *)&credentials);
+    if (bytes_sent < HEADER_SIZE + header.payload_size) {
         print_error_and_exit("Failed to send complete header and payload to server. Terminating.", CLIENT_ERROR_WRITE);
     }
-    char response_buffer[MAX_BUFFER_SIZE];
-    int bytes_read = read_exact(socket_fd, response_buffer, HEADER_SIZE);
+    // Response
+    Header response_header = {0};
+    User response_user = {0};
+    int bytes_read = read_exact(socket_fd, &response_header, HEADER_SIZE);
     if (bytes_read < HEADER_SIZE) {
         print_error_and_exit("Failed to read response header from server. Terminating.", CLIENT_ERROR_READ);
     }
-    // Response (sending is successful)
-    Header response_header = parse_header(response_buffer);
+    response_header = header_ntoh(response_header);
     if (response_header.operation == OPCODE_LOGIN_ERROR) {
         printf("login failed, please check your username and password\n");
         return;
     }
-    if (response_header.operation != OPCODE_OK || response_header.payload_size == 0) {
+    if (response_header.operation != OPCODE_OK || response_header.payload_size != sizeof(response_user)) {
         print_error_and_exit("Received unexpected response from server. Terminating.", CLIENT_ERROR_READ);
     }
-    bytes_read = read_exact(socket_fd, payload_buffer, response_header.payload_size);
+    bytes_read = read_exact(socket_fd, &response_user, response_header.payload_size);
     if (bytes_read < response_header.payload_size) {
         print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
     }
-    *user = parse_user(payload_buffer);
+    *user = user_ntoh(response_user);
     printf("Login successful. Logged in as: %s with type: %d\n", user->username, user->user_type);
 }
 void handle_signup(int socket_fd, User *user) {
     // getting username and password from user input
     LoginCredentials credentials = {0};
-    char username[USERNAME_MAX_LENGTH];
-    char password[PASSWORD_MAX_LENGTH];
     printf("Username and password must be between %d and %d characters long.\n", USERNAME_MIN_LENGTH, USERNAME_MAX_LENGTH - 1);
     printf("Enter username: ");
-    fgets(username, USERNAME_MAX_LENGTH, stdin);
+    fgets(credentials.username, USERNAME_MAX_LENGTH, stdin);
     printf("Enter password: ");
-    fgets(password, PASSWORD_MAX_LENGTH, stdin);
+    fgets(credentials.password, PASSWORD_MAX_LENGTH, stdin);
     // send signup request to server
-    credentials = sanitize_credentials(username, password);
-    char payload_buffer[MAX_BUFFER_SIZE];
-    size_t payload_size = to_string_credentials(payload_buffer, MAX_BUFFER_SIZE, credentials);
-    Header header = {OPCODE_SIGNUP, payload_size};
-    size_t bytes_sent = send_header_and_payload(socket_fd, header, payload_buffer);
-    if (bytes_sent < HEADER_SIZE + payload_size) {
+    Header header = {OPCODE_SIGNUP, sizeof(credentials)};
+    credentials = credentials_hton(sanitize_credentials(credentials));
+    int bytes_sent = send_header_and_payload(socket_fd, header, (const char *)&credentials);
+    if (bytes_sent < HEADER_SIZE + header.payload_size) {
         print_error_and_exit("Failed to send complete header and payload to server. Terminating.", CLIENT_ERROR_WRITE);
     }
-    char response_buffer[MAX_BUFFER_SIZE];
-    int bytes_read = read_exact(socket_fd, response_buffer, HEADER_SIZE);
+    Header response_header = {0};
+    User response_user = {0};
+    int bytes_read = read_exact(socket_fd, &response_header, HEADER_SIZE);
     if (bytes_read < HEADER_SIZE) {
         print_error_and_exit("Failed to read response header from server. Terminating.", CLIENT_ERROR_READ);
     }
+    response_header = header_ntoh(response_header);
     // Response (sending is successful)
-    Header response_header = parse_header(response_buffer);
     if (response_header.operation == OPCODE_SIGNUP_ERROR) {
         printf("signup failed, try with different credentials\n");
         return;
     }
-    if (response_header.operation != OPCODE_OK || response_header.payload_size == 0) {
+    if (response_header.operation != OPCODE_OK || response_header.payload_size != sizeof(response_user)) {
         print_error_and_exit("Received unexpected response from server. Terminating.", CLIENT_ERROR_READ);
     }
-    bytes_read = read_exact(socket_fd, payload_buffer, response_header.payload_size);
+    bytes_read = read_exact(socket_fd, &response_user, response_header.payload_size);
     if (bytes_read < response_header.payload_size) {
         print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
     }
-    *user = parse_user(payload_buffer);
+    *user = user_ntoh(response_user);
     printf("Signup successful. Logged in as: %s with type: %d\n", user->username, user->user_type);
 }
-
+void handle_create_room(int socket_fd, User *user) {
+    Room new_room = {0};
+    printf("Enter room name: ");
+    fgets(new_room.room_name, ROOM_NAME_MAX_LENGTH, stdin);
+    Header header = {OPCODE_CREATE_ROOM, sizeof(new_room)};
+    new_room = room_hton(new_room);
+    int bytes_sent = send_header_and_payload(socket_fd, header, (const char *)&new_room);
+    if (bytes_sent < HEADER_SIZE + header.payload_size) {
+        print_error_and_exit("Failed to send complete header and payload to server. Terminating.", CLIENT_ERROR_WRITE);
+    }
+    Header response_header = {0};
+    int bytes_read = read_exact(socket_fd, &response_header, HEADER_SIZE);
+    if (bytes_read < HEADER_SIZE) {
+        print_error_and_exit("Failed to read response header from server. Terminating.", CLIENT_ERROR_READ);
+    }
+    response_header = header_ntoh(response_header);
+    if (response_header.operation == OPCODE_CREATE_ROOM_ERROR) {
+        printf("Create room failed. Room may already exist or an error occurred.\n");
+        return;
+    }
+    if (response_header.operation != OPCODE_OK || response_header.payload_size != sizeof(Room)) {
+        print_error_and_exit("Received unexpected response from server. Terminating.", CLIENT_ERROR_READ);
+    }
+    Room created_room = {0};
+    bytes_read = read_exact(socket_fd, &created_room, response_header.payload_size);
+    if (bytes_read < response_header.payload_size) {
+        print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
+    }
+    created_room = room_ntoh(created_room);
+    printf("Room created successfully: ID=%u, Name=%s\n", created_room.room_id, created_room.room_name);
+}
+void handle_list_rooms(int socket_fd, User *user) {
+    Header header = {OPCODE_ROOMS_LIST, 0};
+    int bytes_sent = send_header_and_payload(socket_fd, header, NULL);
+    if (bytes_sent < HEADER_SIZE) {
+        print_error_and_exit("Failed to send header to server. Terminating.", CLIENT_ERROR_WRITE);
+    }
+    Header response_header = {0};
+    int bytes_read = read_exact(socket_fd, &response_header, HEADER_SIZE);
+    if (bytes_read < HEADER_SIZE) {
+        print_error_and_exit("Failed to read response header from server. Terminating.", CLIENT_ERROR_READ);
+    }
+    response_header = header_ntoh(response_header);
+    if (response_header.operation == OPCODE_LIST_ERROR) {
+        printf("List rooms failed. An error occurred on the server.\n");
+        return;
+    }
+    if (response_header.operation != OPCODE_OK || response_header.payload_size % sizeof(Room) != 0) {
+        print_error_and_exit("Received unexpected response from server. Terminating.", CLIENT_ERROR_READ);
+    }
+    if (response_header.payload_size == 0) {
+        printf("No rooms found in database.\n");
+        return;
+    }
+    size_t room_count = response_header.payload_size / sizeof(Room);
+    Room *rooms_list = malloc(response_header.payload_size);
+    if (!rooms_list) {
+        print_error_and_exit("Memory allocation failed. Terminating.", CLIENT_ERROR_MEMORY_ALLOCATION);
+    }
+    bytes_read = read_exact(socket_fd, rooms_list, response_header.payload_size);
+    if (bytes_read < response_header.payload_size) {
+        free(rooms_list);
+        print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
+    }
+    printf("Rooms List:\n");
+    for (size_t i = 0; i < room_count; i++) {
+        rooms_list[i] = room_ntoh(rooms_list[i]);
+        printf("Room ID=%u, Room Name=%s\n", rooms_list[i].room_id, rooms_list[i].room_name);
+    }
+    free(rooms_list);
+}
 // EOF
