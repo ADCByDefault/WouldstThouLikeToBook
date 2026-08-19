@@ -169,41 +169,61 @@ void handle_login(int socket_fd, User *user, char *payload_buffer, size_t payloa
     if (payload_size == 0 || payload_buffer == NULL) {
         print_error_and_exit("Invalid payload for login operation", SERVER_CHILD_ERROR_READ);
     }
+    int bytes_read = read_exact(socket_fd, payload_buffer, payload_size);
+    if (bytes_read < payload_size) {
+        print_error_and_exit("Failed to read complete payload for login operation", SERVER_CHILD_ERROR_READ);
+    }
     LoginCredentials credentials = parse_credentials(payload_buffer);
     User logged_in_user = login(credentials);
     Header response_header = {0};
     if (strlen(logged_in_user.username) == 0 || strcmp(logged_in_user.username, credentials.username) != 0) {
         response_header.operation = OPCODE_LOGIN_ERROR;
         response_header.payload_size = 0;
-        send_header_and_payload(socket_fd, &response_header, NULL);
+        char test[MAX_BUFFER_SIZE] = {0};
+        to_string_header(test, MAX_BUFFER_SIZE, response_header);
+        printf("Sending Header=%s\n", test);
+        send_header_and_payload(socket_fd, response_header, NULL);
         return;
     }
     *user = logged_in_user;
     char response_payload[MAX_BUFFER_SIZE];
-    size_t response_payload_size = to_string_user(response_payload, MAX_BUFFER_SIZE, user);
+    int response_payload_size = to_string_user(response_payload, MAX_BUFFER_SIZE, *user);
     response_header.operation = OPCODE_OK;
     response_header.payload_size = response_payload_size;
-    send_header_and_payload(socket_fd, &response_header, response_payload);
+    send_header_and_payload(socket_fd, response_header, response_payload);
 }
 void handle_signup(int socket_fd, User *user, char *payload_buffer, size_t payload_size) {
     if (payload_size == 0 || payload_buffer == NULL) {
         print_error_and_exit("Invalid payload for signup operation", SERVER_CHILD_ERROR_READ);
     }
+    int bytes_read = read_exact(socket_fd, payload_buffer, payload_size);
+    if (bytes_read < payload_size) {
+        print_error_and_exit("Failed to read complete payload for signup operation", SERVER_CHILD_ERROR_READ);
+    }
     LoginCredentials credentials = parse_credentials(payload_buffer);
+    if (strlen(credentials.username) < USERNAME_MIN_LENGTH || strlen(credentials.username) >= USERNAME_MAX_LENGTH ||
+        strlen(credentials.password) < PASSWORD_MIN_LENGTH || strlen(credentials.password) >= PASSWORD_MAX_LENGTH) {
+        Header response_header = {0};
+        response_header.operation = OPCODE_SIGNUP_ERROR;
+        response_header.payload_size = 0;
+        send_header_and_payload(socket_fd, response_header, NULL);
+        return;
+    }
     User signed_up_user = signup(credentials, USER);
     Header response_header = {0};
     if (strlen(signed_up_user.username) == 0 || strcmp(signed_up_user.username, credentials.username) != 0) {
         response_header.operation = OPCODE_SIGNUP_ERROR;
         response_header.payload_size = 0;
-        send_header_and_payload(socket_fd, &response_header, NULL);
+        send_header_and_payload(socket_fd, response_header, NULL);
         return;
     }
+    printf("Signed up for username=%stype=%d\n", signed_up_user.username, USER);
     *user = signed_up_user;
     char response_payload[MAX_BUFFER_SIZE];
-    size_t response_payload_size = to_string_user(response_payload, MAX_BUFFER_SIZE, user);
+    int response_payload_size = to_string_user(response_payload, MAX_BUFFER_SIZE, *user);
     response_header.operation = OPCODE_OK;
     response_header.payload_size = response_payload_size;
-    send_header_and_payload(socket_fd, &response_header, response_payload);
+    send_header_and_payload(socket_fd, response_header, response_payload);
 }
 
 // EOF

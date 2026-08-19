@@ -18,7 +18,6 @@ int main(int argc, char const *argv[]) {
     struct sockaddr_in server_address = initialize_client();
     User user = {"", GUEST};
     char buffer[MAX_BUFFER_SIZE];
-    bool is_logged_in = false;
 
     // Create socket
     int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -33,12 +32,10 @@ int main(int argc, char const *argv[]) {
     }
 
     int user_input;
-    Handeler operation_handler = {OPCODE_UNDEFINED, NULL};
-    size_t operation_count = sizeof(HANDLERS) / sizeof(HANDLERS[0]);
-    print_info(user.user_type);
+    int operation_count = sizeof(HANDLERS) / sizeof(HANDLERS[0]);
+    print_info(user);
     // Main loop for user interaction
     do {
-        operation_handler.opcode = OPCODE_UNDEFINED;
         printf("\nEnter input: ");
         scanf("%d", &user_input);
         flush_stdin();          // Clear the input buffer
@@ -47,27 +44,20 @@ int main(int argc, char const *argv[]) {
             break;
         }
         if (user_input == 0) { // Print application information
-            print_info(user.user_type);
+            print_info(user);
             continue;
         }
-        // Find the corresponding handler for the user input
-        for (size_t i = 0; i < operation_count; i++) {
+        if (!is_valid_opcode_for_user_by_type(user_input, user.user_type)) {
+            printf("Invalid operation for your user type. Please try again.\n");
+            continue;
+        }
+        for (int i = 0; i < operation_count; i++) {
             if (HANDLERS[i].opcode == user_input) {
-                operation_handler = HANDLERS[i];
+                HANDLERS[i].handler(socket_fd, &user);
                 break;
             }
         }
-        // if invalid input, print error message and continue the loop
-        if (operation_handler.opcode == OPCODE_UNDEFINED) {
-            printf("Invalid input. Please try again.\n");
-            continue;
-        }
-        if (operation_handler.handler == NULL) {
-            printf("No handler defined for this operation. Please try again.\n");
-            continue;
-        }
-        // Call the handler function for the selected operation
-        operation_handler.handler(socket_fd, &user);
+        user_input = 0;
     } while (user_input != -1);
     close(socket_fd);
 

@@ -6,9 +6,9 @@
 #include <string.h>
 #include <time.h>
 
-#define HEADER_SIZE sizeof(Header)
+#define HEADER_SIZE sizeof("Operation: 000 Payload Size: 0000")
 
-typedef enum UserType { GUEST, USER, SUPERUSER } UserType;
+typedef enum UserType { GUEST=0, USER=1, SUPERUSER=2 } UserType;
 typedef struct User {
     char username[USERNAME_MAX_LENGTH];
     UserType user_type;
@@ -62,17 +62,17 @@ typedef struct Header {
 } Header;
 
 // Header to string and parse functions
-size_t to_string_header(char *buffer, size_t buffer_size, Header *header);
+int to_string_header(char *buffer, size_t buffer_size, Header header);
 Header parse_header(char *buffer);
 // Credentials to string and parse functions
 LoginCredentials sanitize_credentials(char *username, char *password);
-size_t to_string_credentials(char *buffer, size_t buffer_size, LoginCredentials *credentials);
+int to_string_credentials(char *buffer, size_t buffer_size, LoginCredentials credentials);
 LoginCredentials parse_credentials(char *buffer);
 // User to string and parse functions
-size_t to_string_user(char *buffer, size_t buffer_size, User *user);
+int to_string_user(char *buffer, size_t buffer_size, User user);
 User parse_user(char *buffer);
 
-size_t to_string_booking(char *buffer, size_t buffer_size, Booking *booking);
+int to_string_booking(char *buffer, size_t buffer_size, Booking booking);
 Booking parse_booking(char *buffer);
 
 bool is_valid_opcode_from_client(OpCode opcode);
@@ -86,7 +86,7 @@ char *get_opcode_description(OpCode opcode);
 
 // Reads exactly 'size' bytes from the file descriptor 'fd' into 'buffer'.
 // Returns the number of bytes read
-size_t read_exact(int fd, char *buffer, size_t size);
+int read_exact(int fd, char *buffer, size_t size);
 // Sends the header and payload to the file descriptor 'fd'.
 // Returns the total number of bytes sent (header + payload)
-size_t send_header_and_payload(int fd, Header *header, const char *payload);
+int send_header_and_payload(int fd, Header header, const char *payload);

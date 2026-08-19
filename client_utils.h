@@ -25,7 +25,7 @@ struct sockaddr_in initialize_client();
 void print_error_and_exit(const char *error_message, int error_code);
 void flush_stdin();
 
-void print_info(UserType user_type);
+void print_info(User user);
 // A string to describe the operations that a GUEST can perform
 void print_guest_can_do_operations();
 // A string to describe the operations that a USER can perform
