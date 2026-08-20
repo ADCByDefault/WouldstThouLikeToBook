@@ -16,7 +16,7 @@
 int main(int argc, char const *argv[]) {
     // Initialize client settings
     struct sockaddr_in server_address = initialize_client();
-    User user = {"", GUEST};
+    User user = {"guest", GUEST};
     char buffer[MAX_BUFFER_SIZE];
 
     // Create socket

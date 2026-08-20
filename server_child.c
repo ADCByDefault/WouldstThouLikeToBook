@@ -13,7 +13,7 @@
 int main(int argc, char const *argv[]) {
     int socket_fd = SERVER_CHILD_DEFAULT_SOCKET_FD;
     char buffer[MAX_BUFFER_SIZE];
-    User user = {"", GUEST};
+    User user = {"guest", GUEST};
     if (argc != 2) {
         print_error_and_exit("Invalid number of arguments for server_child", SERVER_CHILD_INVALID_ARGUMENTS);
     }
@@ -35,6 +35,13 @@ int main(int argc, char const *argv[]) {
         header = header_ntoh(header);
         printf("From client operation=%d,size=%d\n", header.operation, header.payload_size);
         if (header.operation == OPCODE_UNDEFINED) {
+            if (header.payload_size == 0) {
+                printf("Undefined operation received with zero payload size.\n");
+                continue;
+            } else {
+                print_error_and_exit("Received undefined operation code with non-zero payload size from client. Terminating.",
+                                     SERVER_CHILD_ERROR_READ);
+            }
             print_error_and_exit("Received undefined operation code from client. Terminating.", SERVER_CHILD_ERROR_READ);
         }
         if (!is_valid_opcode_from_client(header.operation)) {

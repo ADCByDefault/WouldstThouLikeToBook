@@ -18,20 +18,21 @@ typedef struct User {
 
 typedef enum OpCode {
     OPCODE_UNDEFINED = 0,
+    OPCODE_CANCEL,
     // client opcodes
     OPCODE_LOGIN = 100,
     OPCODE_SIGNUP,
-    OPCODE_BOOKING,
+    OPCODE_CREATE_BOOKING,
     OPCODE_ROOMS_LIST,
+    OPCODE_BOOKINGS_LIST,
     // client opcodes specific to superuser
     OPCODE_CREATE_ROOM = 150,
+    OPCODE_APPROVE_BOOKING,
+    OPCODE_REJECT_BOOKING,
+    OPCODE_LIST_BOOKINGS_SUPERUSER,
     // server opcodes
     OPCODE_OK = 200,
-    OPCODE_LOGIN_ERROR,
-    OPCODE_SIGNUP_ERROR,
-    OPCODE_BOOKING_ERROR,
-    OPCODE_LIST_ERROR,
-    OPCODE_CREATE_ROOM_ERROR,
+    OPCODE_ERROR,
 } OpCode;
 
 typedef struct OpcodeDescription {
@@ -39,9 +40,9 @@ typedef struct OpcodeDescription {
     const char *description;
 } OpcodeDescription;
 
-extern const OpCode GUEST_OPCODES[5];
-extern const OpCode USER_OPCODES[2];
-extern const OpCode SUPERUSER_OPCODES[3];
+extern const OpCode GUEST_OPCODES[6];
+extern const OpCode USER_OPCODES[4];
+extern const OpCode SUPERUSER_OPCODES[2];
 extern const OpcodeDescription OPCODE_DESCRIPTIONS[];
 
 typedef struct Room {
@@ -54,8 +55,6 @@ typedef struct Booking {
     uint32_t booking_id;
     uint32_t room_id;
     char username[USERNAME_MAX_LENGTH];
-    char room_name[ROOM_NAME_MAX_LENGTH];
-    uint64_t date;
     uint64_t start_time;
     uint64_t end_time;
     uint8_t status;
