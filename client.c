@@ -33,12 +33,18 @@ int main(int argc, char const *argv[]) {
 
     int user_input;
     int operation_count = sizeof(HANDLERS) / sizeof(HANDLERS[0]);
+    int read_count = 0;
     print_info(user);
     // Main loop for user interaction
     do {
-        printf("\nEnter input: ");
+        user_input = 0;
+        printf("\nEnter an OPCODE: ");
         fgets(buffer, sizeof(buffer), stdin);
-        user_input = atoi(buffer);
+        read_count = sscanf(buffer, "%d", &user_input);
+        if (read_count != 1) {
+            printf("Invalid input.\n");
+            continue;
+        }
         if (user_input == -1) { // Exit the application
             printf("Exiting the application.\n");
             break;
@@ -57,6 +63,7 @@ int main(int argc, char const *argv[]) {
                 break;
             }
         }
+        flush_stdin(); // Clear any remaining input in stdin
     } while (user_input != -1);
     close(socket_fd);
 

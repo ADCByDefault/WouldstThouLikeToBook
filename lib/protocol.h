@@ -22,14 +22,15 @@ typedef enum OpCode {
     // client opcodes
     OPCODE_LOGIN = 100,
     OPCODE_SIGNUP,
+    OPCODE_LOGOUT,
     OPCODE_CREATE_BOOKING,
     OPCODE_ROOMS_LIST,
-    OPCODE_BOOKINGS_LIST,
+    OPCODE_USERS_BOOKINGS_LIST,
     // client opcodes specific to superuser
     OPCODE_CREATE_ROOM = 150,
     OPCODE_APPROVE_BOOKING,
     OPCODE_REJECT_BOOKING,
-    OPCODE_LIST_BOOKINGS_SUPERUSER,
+    OPCODE_BOOKINGS_LIST_SUPERUSER,
     // server opcodes
     OPCODE_OK = 200,
     OPCODE_ERROR,
@@ -40,9 +41,9 @@ typedef struct OpcodeDescription {
     const char *description;
 } OpcodeDescription;
 
-extern const OpCode GUEST_OPCODES[6];
-extern const OpCode USER_OPCODES[4];
-extern const OpCode SUPERUSER_OPCODES[2];
+extern const OpCode GUEST_OPCODES[9];
+extern const OpCode USER_OPCODES[5];
+extern const OpCode SUPERUSER_OPCODES[3];
 extern const OpcodeDescription OPCODE_DESCRIPTIONS[];
 
 typedef struct Room {

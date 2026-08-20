@@ -13,10 +13,17 @@
 #include <unistd.h>
 
 // for testing purposes giving privilage to guest
-const OpCode GUEST_OPCODES[6] = {OPCODE_LOGIN,       OPCODE_SIGNUP,        OPCODE_ROOMS_LIST,
-                                 OPCODE_CREATE_ROOM, OPCODE_BOOKINGS_LIST, OPCODE_CREATE_BOOKING};
-const OpCode USER_OPCODES[4] = {OPCODE_CREATE_BOOKING, OPCODE_ROOMS_LIST, OPCODE_CREATE_BOOKING, OPCODE_BOOKINGS_LIST};
-const OpCode SUPERUSER_OPCODES[2] = {OPCODE_ROOMS_LIST, OPCODE_CREATE_ROOM};
+const OpCode GUEST_OPCODES[9] = {OPCODE_LOGIN,
+                                 OPCODE_SIGNUP,
+                                 OPCODE_ROOMS_LIST,
+                                 OPCODE_CREATE_ROOM,
+                                 OPCODE_USERS_BOOKINGS_LIST,
+                                 OPCODE_CREATE_BOOKING,
+                                 OPCODE_APPROVE_BOOKING,
+                                 OPCODE_REJECT_BOOKING,
+                                 OPCODE_BOOKINGS_LIST_SUPERUSER};
+const OpCode USER_OPCODES[5] = {OPCODE_CREATE_BOOKING, OPCODE_ROOMS_LIST, OPCODE_CREATE_BOOKING, OPCODE_USERS_BOOKINGS_LIST, OPCODE_LOGOUT};
+const OpCode SUPERUSER_OPCODES[3] = {OPCODE_ROOMS_LIST, OPCODE_CREATE_ROOM, OPCODE_LOGOUT};
 const OpcodeDescription OPCODE_DESCRIPTIONS[] = {
     {OPCODE_UNDEFINED, "Undefined"},
     {OPCODE_LOGIN, "Login"},
@@ -28,8 +35,9 @@ const OpcodeDescription OPCODE_DESCRIPTIONS[] = {
     {OPCODE_CREATE_ROOM, "Create Room"},
     {OPCODE_APPROVE_BOOKING, "Approve Booking"},
     {OPCODE_REJECT_BOOKING, "Reject Booking"},
-    {OPCODE_LIST_BOOKINGS_SUPERUSER, "List Bookings Superuser"},
-    {OPCODE_BOOKINGS_LIST, "Users Bookings List"},
+    {OPCODE_BOOKINGS_LIST_SUPERUSER, "List Bookings Superuser"},
+    {OPCODE_USERS_BOOKINGS_LIST, "Users Bookings List"},
+    {OPCODE_LOGOUT, "Logout"},
 };
 
 Header header_hton(Header header) {

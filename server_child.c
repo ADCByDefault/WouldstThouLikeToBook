@@ -24,38 +24,35 @@ int main(int argc, char const *argv[]) {
     int bytes_read;
     int operation_count = sizeof(HANDLERS) / sizeof(HANDLERS[0]);
     Header header = {0};
+    bool operation_found = false;
     while (1) {
         bytes_read = read_exact(socket_fd, &header, HEADER_SIZE);
-        if (bytes_read < 0) {
-            print_error_and_exit("Failed to read from client. Terminating.", SERVER_CHILD_ERROR_READ);
+        if (bytes_read == 0) {
+            break; // Client disconnected
         }
         if (bytes_read != HEADER_SIZE) {
             print_error_and_exit("Failed to read complete header from client. Terminating.", SERVER_CHILD_ERROR_READ);
         }
         header = header_ntoh(header);
-        printf("From client operation=%d,size=%d\n", header.operation, header.payload_size);
-        if (header.operation == OPCODE_UNDEFINED) {
-            if (header.payload_size == 0) {
-                printf("Undefined operation received with zero payload size.\n");
-                continue;
-            } else {
-                print_error_and_exit("Received undefined operation code with non-zero payload size from client. Terminating.",
-                                     SERVER_CHILD_ERROR_READ);
-            }
-            print_error_and_exit("Received undefined operation code from client. Terminating.", SERVER_CHILD_ERROR_READ);
-        }
-        if (!is_valid_opcode_from_client(header.operation)) {
-            print_error_and_exit("Received invalid operation code from client. Terminating.", SERVER_CHILD_ERROR_READ);
-        }
+        printf("From client operation=%d,payload_size=%d\n", header.operation, header.payload_size);
         for (int i = 0; i < operation_count; i++) {
             if (HANDLERS[i].opcode == header.operation) {
                 HANDLERS[i].handler(socket_fd, &user, header);
+                operation_found = true;
                 break;
             }
         }
+        if (!operation_found) {
+            printf("Unknown operation code received: %d\n", header.operation);
+            Header response_header = {0};
+            response_header.operation = OPCODE_ERROR;
+            response_header.payload_size = 0;
+            send_header_and_payload(socket_fd, response_header, NULL);
+        }
+        operation_found = false;
     }
 
-    printf("Client disconnected. Terminating.\n");
+    printf("Closed connection from client %s\n", argv[1]);
     close(socket_fd);
 
     return 0;

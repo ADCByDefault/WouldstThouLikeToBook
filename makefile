@@ -15,8 +15,11 @@ client: client.c $(LIBS) $(CLIENT_UTILS)
 server: server.c $(LIBS) $(SERVER_UTILS)
 	$(CC) $^ -o $@
 
+test: server_test.c $(LIBS) $(SERVER_UTILS)
+	$(CC) $^ -o $@
+
 clean:
-	rm -f *.o server server_child client
+	rm -f *.o server server_child client test
 
 clean-data:
 	rm -f data/users.dat data/rooms.dat data/bookings.dat

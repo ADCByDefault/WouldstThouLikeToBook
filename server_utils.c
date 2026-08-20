@@ -10,18 +10,19 @@
 
 #include "./lib/configuration.h"
 #include "./lib/protocol.h"
-#include "server_utils.h"
+#include "./server_utils.h"
 
-const Handler HANDLERS[8] = {
+const Handler HANDLERS[10] = {
     {OPCODE_LOGIN, handle_login},
     {OPCODE_SIGNUP, handle_signup},
     {OPCODE_CREATE_ROOM, handle_create_room},
     {OPCODE_ROOMS_LIST, handle_list_rooms},
-    {OPCODE_BOOKINGS_LIST, handle_bookings_list},
+    {OPCODE_USERS_BOOKINGS_LIST, handle_users_bookings_list},
     {OPCODE_CREATE_BOOKING, handle_create_booking},
     {OPCODE_APPROVE_BOOKING, handle_approve_booking},
     {OPCODE_REJECT_BOOKING, handle_reject_booking},
-    // Add more handlers as needed
+    {OPCODE_LOGOUT, handle_logout},
+    {OPCODE_BOOKINGS_LIST_SUPERUSER, handle_bookings_list_superuser},
 };
 
 struct sockaddr_in initialize_server() {
@@ -267,6 +268,17 @@ void handle_signup(int socket_fd, User *user, Header header) {
     signed_up_user = user_hton(signed_up_user);
     send_header_and_payload(socket_fd, response_header, (const char *)&signed_up_user);
 }
+void handle_logout(int socket_fd, User *user, Header header) {
+    if (header.payload_size != 0) {
+        print_error_and_exit("Invalid payload for logout operation", SERVER_CHILD_ERROR_READ);
+    }
+    strcpy(user->username, "guest");
+    user->user_type = GUEST;
+    Header response_header = {0};
+    response_header.operation = OPCODE_OK;
+    response_header.payload_size = 0;
+    send_header_and_payload(socket_fd, response_header, NULL);
+}
 
 Room create_room(Room new_room) {
     int greatest_room_id = 0;
@@ -406,11 +418,47 @@ bool is_in_same_time_slot(uint64_t start_time1, uint64_t end_time1, uint64_t sta
     return (start_time1 < end_time2) && (start_time2 < end_time1);
 }
 bool is_booking_conflict(Booking booking1, Booking booking2) {
-    bool approved_on_same_time_slot = (booking1.status == APPROVED || booking2.status == APPROVED) &&
-                                      is_in_same_time_slot(booking1.start_time, booking1.end_time, booking2.start_time, booking2.end_time);
-    bool same_user_and_time_slot = is_in_same_time_slot(booking1.start_time, booking1.end_time, booking2.start_time, booking2.end_time) &&
-                                   strcmp(booking1.username, booking2.username) == 0;
-    return approved_on_same_time_slot || same_user_and_time_slot;
+    bool on_same_time_slot = is_in_same_time_slot(booking1.start_time, booking1.end_time, booking2.start_time, booking2.end_time);
+    bool approved_booking = (booking1.status == APPROVED || booking2.status == APPROVED);
+    bool same_user = strcmp(booking1.username, booking2.username) == 0;
+    bool on_same_room = booking1.room_id == booking2.room_id;
+    return on_same_room && on_same_time_slot && (approved_booking || same_user);
+}
+bool is_booking_respects_time_requirements(Booking booking) {
+    if (booking.start_time >= booking.end_time) {
+        return false; // Invalid time range
+    }
+    if (booking.start_time < time(NULL)) {
+        return false; // Booking in the past
+    }
+    if ((booking.end_time - booking.start_time) % BOOKING_TIME_SLOT_SECONDS != 0) {
+        return false; // Booking duration is not a multiple of the time slot
+    }
+    return true;
+}
+bool is_booking_rejected(Booking booking) { return booking.status == REJECTED; }
+bool is_booking_in_past(Booking booking) { return booking.end_time < time(NULL); }
+bool has_booking_conflict(Booking booking) {
+    FILE *bookings_file = fopen(BOOKINGS_FILE_NAME, "rb");
+    if (bookings_file == NULL) {
+        return false; // Error opening bookings file
+    }
+    if (!lock_reading_for_file(bookings_file)) {
+        fclose(bookings_file);
+        return false; // Error locking bookings file
+    }
+    fseek(bookings_file, 0, SEEK_SET);
+    Booking existing_booking = {0};
+    while (fread(&existing_booking, sizeof(Booking), 1, bookings_file) == 1) {
+        if (is_booking_conflict(existing_booking, booking) && existing_booking.booking_id != booking.booking_id) {
+            unlock_reading_for_file(bookings_file);
+            fclose(bookings_file);
+            return true; // Found an approved booking conflict
+        }
+    }
+    unlock_reading_for_file(bookings_file);
+    fclose(bookings_file);
+    return false; // No approved booking conflict found
 }
 Booking create_booking(Booking new_booking) {
     Booking created_booking = {0};
@@ -418,11 +466,8 @@ Booking create_booking(Booking new_booking) {
     if (!is_room_exists(new_booking.room_id)) {
         return created_booking; // Room does not exist
     }
-    if (new_booking.start_time >= new_booking.end_time) {
-        return created_booking; // Invalid time range
-    }
-    if (new_booking.start_time < time(NULL)) {
-        return created_booking; // Booking in the past
+    if (!is_booking_respects_time_requirements(new_booking)) {
+        return created_booking; // Booking does not respect time requirements
     }
     FILE *bookings_file = fopen(BOOKINGS_FILE_NAME, "ab+");
     if (bookings_file == NULL) {
@@ -453,43 +498,65 @@ Booking create_booking(Booking new_booking) {
     fclose(bookings_file);
     return created_booking; // Booking creation successful
 }
-bool match_by_username(Booking *booking, void *search_value) {
-    char *username = (char *)search_value;
+bool match_by_any(Booking *booking, booking_filter_context *filter_context) { return true; }
+bool match_by_username(Booking *booking, booking_filter_context *filter_context) {
+    char *username = (char *)filter_context->search_value;
     return strcmp(booking->username, username) == 0;
 }
-bool match_by_room_id(Booking *booking, void *search_value) {
-    uint32_t *room_id = (uint32_t *)search_value;
+bool match_by_booking_id(Booking *booking, booking_filter_context *filter_context) {
+    uint32_t *booking_id = (uint32_t *)filter_context->search_value;
+    return booking->booking_id == *booking_id;
+}
+bool match_by_room_id(Booking *booking, booking_filter_context *filter_context) {
+    uint32_t *room_id = (uint32_t *)filter_context->search_value;
     return booking->room_id == *room_id;
 }
-bool match_by_room_is_mask_username(Booking *booking, void *search_value) {
-    uint32_t *room_id = (uint32_t *)search_value;
-    strcpy(booking->username, "***");
+bool match_by_room_is_mask_username(Booking *booking, booking_filter_context *filter_context) {
+    uint32_t *room_id = (uint32_t *)filter_context->search_value;
+    if (strcmp(booking->username, filter_context->user->username) != 0) {
+        strcpy(booking->username, "***");
+    }
     return booking->room_id == *room_id;
 }
-bool match_by_room_id_from_current_time(Booking *booking, void *search_value) {
-    uint32_t *room_id = (uint32_t *)search_value;
+bool match_by_room_id_from_current_time(Booking *booking, booking_filter_context *filter_context) {
+    uint32_t *room_id = (uint32_t *)filter_context->search_value;
     if (booking->end_time < time(NULL)) {
         return false; // Booking is in the past
     }
     return booking->room_id == *room_id;
 }
-bool match_by_room_id_from_current_time_and_mask_username(Booking *booking, void *search_value) {
-    uint32_t *room_id = (uint32_t *)search_value;
+bool match_by_room_id_from_current_time_and_mask_username(Booking *booking, booking_filter_context *filter_context) {
+    uint32_t *room_id = (uint32_t *)filter_context->search_value;
     if (booking->end_time < time(NULL)) {
         return false; // Booking is in the past
     }
-    strcpy(booking->username, "***");
+    if (strcmp(booking->username, filter_context->user->username) != 0) {
+        strcpy(booking->username, "***");
+    }
     return booking->room_id == *room_id;
 }
-bool match_by_time_range(Booking *booking, void *search_value) {
-    TimeRange *time_range = (TimeRange *)search_value;
+bool match_by_room_id_from_current_time_not_rejected_mask_username(Booking *booking, booking_filter_context *filter_context) {
+    uint32_t *room_id = (uint32_t *)filter_context->search_value;
+    if (booking->end_time < time(NULL)) {
+        return false; // Booking is in the past
+    }
+    if (booking->status == REJECTED) {
+        return false; // Booking is rejected
+    }
+    if (strcmp(booking->username, filter_context->user->username) != 0) {
+        strcpy(booking->username, "***");
+    }
+    return booking->room_id == *room_id;
+}
+bool match_by_time_range(Booking *booking, booking_filter_context *filter_context) {
+    TimeRange *time_range = (TimeRange *)filter_context->search_value;
     return is_in_same_time_slot(booking->start_time, booking->end_time, time_range->start_time, time_range->end_time);
 }
-bool match_by_status(Booking *booking, void *search_value) {
-    uint8_t *status = (uint8_t *)search_value;
+bool match_by_status(Booking *booking, booking_filter_context *filter_context) {
+    uint8_t *status = (uint8_t *)filter_context->search_value;
     return booking->status == *status;
 }
-Booking find_first_booking_by_filter(booking_filter filter, void *search_value) {
+Booking find_first_booking_by_filter(booking_filter filter, booking_filter_context *filter_context) {
     Booking found_booking = {0};
     FILE *bookings_file = fopen(BOOKINGS_FILE_NAME, "rb");
     if (bookings_file == NULL) {
@@ -502,7 +569,7 @@ Booking find_first_booking_by_filter(booking_filter filter, void *search_value) 
     fseek(bookings_file, 0, SEEK_SET);
     Booking booking = {0};
     while (fread(&booking, sizeof(Booking), 1, bookings_file) == 1) {
-        if (filter(&booking, search_value)) {
+        if (filter(&booking, filter_context)) {
             found_booking = booking;
             break;
         }
@@ -511,7 +578,7 @@ Booking find_first_booking_by_filter(booking_filter filter, void *search_value) 
     fclose(bookings_file);
     return found_booking;
 }
-int count_bookings_by_filter(booking_filter filter, void *search_value) {
+int count_bookings_by_filter(booking_filter filter, booking_filter_context *filter_context) {
     int booking_count = 0;
     FILE *bookings_file = fopen(BOOKINGS_FILE_NAME, "rb");
     if (bookings_file == NULL) {
@@ -524,7 +591,7 @@ int count_bookings_by_filter(booking_filter filter, void *search_value) {
     fseek(bookings_file, 0, SEEK_SET);
     Booking booking = {0};
     while (fread(&booking, sizeof(Booking), 1, bookings_file) == 1) {
-        if (filter(&booking, search_value)) {
+        if (filter(&booking, filter_context)) {
             booking_count++;
         }
     }
@@ -532,7 +599,7 @@ int count_bookings_by_filter(booking_filter filter, void *search_value) {
     fclose(bookings_file);
     return booking_count;
 }
-int send_bookings_by_filter(int socket_fd, booking_filter filter, void *search_value) {
+int send_bookings_by_filter(int socket_fd, booking_filter filter, booking_filter_context *filter_context, int max_bookings_to_send) {
     FILE *bookings_file = fopen(BOOKINGS_FILE_NAME, "rb");
     if (bookings_file == NULL) {
         return -1; // Error opening bookings file
@@ -545,7 +612,7 @@ int send_bookings_by_filter(int socket_fd, booking_filter filter, void *search_v
     Booking booking = {0};
     int sent_count = 0;
     while (fread(&booking, sizeof(Booking), 1, bookings_file) == 1) {
-        if (filter(&booking, search_value)) {
+        if (filter(&booking, filter_context)) {
             booking = booking_hton(booking);
             if (send(socket_fd, &booking, sizeof(Booking), 0) == -1) {
                 unlock_reading_for_file(bookings_file);
@@ -559,12 +626,15 @@ int send_bookings_by_filter(int socket_fd, booking_filter filter, void *search_v
     fclose(bookings_file);
     return sent_count; // Return the number of bookings sent
 }
-void handle_bookings_list(int socket_fd, User *user, Header header) {
+void handle_users_bookings_list(int socket_fd, User *user, Header header) {
     if (header.payload_size != 0) {
         print_error_and_exit("Invalid payload for list bookings operation", SERVER_CHILD_ERROR_READ);
     }
     booking_filter filter = match_by_username;
-    int booking_count = count_bookings_by_filter(filter, user->username);
+    booking_filter_context filter_context = {0};
+    filter_context.user = user;
+    filter_context.search_value = user->username;
+    int booking_count = count_bookings_by_filter(filter, &filter_context);
     if (booking_count < 0) {
         perror("Failed to count bookings by filter");
         Header response_header = {0};
@@ -577,7 +647,7 @@ void handle_bookings_list(int socket_fd, User *user, Header header) {
     response_header.operation = OPCODE_OK;
     response_header.payload_size = booking_count * sizeof(Booking);
     send_header_and_payload(socket_fd, response_header, NULL);
-    int sent_count = send_bookings_by_filter(socket_fd, filter, user->username);
+    int sent_count = send_bookings_by_filter(socket_fd, filter, &filter_context, booking_count);
     if (sent_count < booking_count) {
         print_error_and_exit("Failed to send bookings by filter", SERVER_CHILD_ERROR_READ);
     }
@@ -604,8 +674,11 @@ void handle_create_booking(int socket_fd, User *user, Header header) {
         return;
     }
     // send to client the masked bookings for the room
-    booking_filter filter = match_by_room_id_from_current_time_and_mask_username;
-    int booking_count = count_bookings_by_filter(filter, &room.room_id);
+    booking_filter filter = match_by_room_id_from_current_time_not_rejected_mask_username;
+    booking_filter_context filter_context = {0};
+    filter_context.user = user;
+    filter_context.search_value = &room.room_id;
+    int booking_count = count_bookings_by_filter(filter, &filter_context);
     if (booking_count < 0) {
         perror("Failed to count bookings by filter");
         Header response_header = {0};
@@ -618,7 +691,7 @@ void handle_create_booking(int socket_fd, User *user, Header header) {
     response_header.operation = OPCODE_OK;
     response_header.payload_size = booking_count * sizeof(Booking);
     send_header_and_payload(socket_fd, response_header, NULL);
-    int sent_count = send_bookings_by_filter(socket_fd, filter, &room.room_id);
+    int sent_count = send_bookings_by_filter(socket_fd, filter, &filter_context, booking_count);
     if (sent_count < booking_count) {
         print_error_and_exit("Failed to send bookings by filter", SERVER_CHILD_ERROR_READ);
     }
@@ -659,6 +732,19 @@ void handle_create_booking(int socket_fd, User *user, Header header) {
     send_header_and_payload(socket_fd, response_header, (const char *)&created_booking);
 }
 
+bool has_booking_conflict_no_lock(Booking booking, FILE *bookings_file) {
+    if (bookings_file == NULL) {
+        return false; // Error opening bookings file
+    }
+    fseek(bookings_file, 0, SEEK_SET);
+    Booking existing_booking = {0};
+    while (fread(&existing_booking, sizeof(Booking), 1, bookings_file) == 1) {
+        if (is_booking_conflict(existing_booking, booking) && existing_booking.booking_id != booking.booking_id) {
+            return true; // Found an approved booking conflict
+        }
+    }
+    return false; // No approved booking conflict found
+}
 Booking reject_booking(Booking booking_to_reject) {
     Booking rejected_booking = {0};
     FILE *bookings_file = fopen(BOOKINGS_FILE_NAME, "rb+");
@@ -672,7 +758,7 @@ Booking reject_booking(Booking booking_to_reject) {
     fseek(bookings_file, 0, SEEK_SET);
     Booking booking = {0};
     while (fread(&booking, sizeof(Booking), 1, bookings_file) == 1) {
-        if (booking.booking_id == booking_to_reject.booking_id) {
+        if (booking.booking_id == booking_to_reject.booking_id && booking.status == PENDING && !is_booking_in_past(booking)) {
             booking.status = REJECTED;
             fseek(bookings_file, -sizeof(Booking), SEEK_CUR);
             fwrite(&booking, sizeof(Booking), 1, bookings_file);
@@ -686,6 +772,14 @@ Booking reject_booking(Booking booking_to_reject) {
 }
 Booking approve_booking(Booking booking_to_approve) {
     Booking approved_booking = {0};
+    booking_filter filter = match_by_booking_id;
+    booking_filter_context filter_context = {0};
+    filter_context.user = NULL;
+    filter_context.search_value = &booking_to_approve.booking_id;
+    Booking existing_booking = find_first_booking_by_filter(filter, &filter_context);
+    if (existing_booking.booking_id <= 0 || existing_booking.status != PENDING || is_booking_in_past(existing_booking)) {
+        return approved_booking; // Booking not found or not pending or in the past
+    }
     FILE *bookings_file = fopen(BOOKINGS_FILE_NAME, "rb+");
     if (bookings_file == NULL) {
         return approved_booking; // Error opening bookings file
@@ -694,22 +788,28 @@ Booking approve_booking(Booking booking_to_approve) {
         fclose(bookings_file);
         return approved_booking; // Error locking bookings file
     }
+    if (has_booking_conflict_no_lock(booking_to_approve, bookings_file)) {
+        unlock_writing_for_file(bookings_file);
+        fclose(bookings_file);
+        return approved_booking; // Booking conflict detected
+    }
+    booking_to_approve = existing_booking;
+    booking_to_approve.status = APPROVED;
     fseek(bookings_file, 0, SEEK_SET);
     Booking booking = {0};
     while (fread(&booking, sizeof(Booking), 1, bookings_file) == 1) {
         // reject all bookings that are in the same time slot and have the same room_id and are pending
-        if (booking.room_id == booking_to_approve.room_id &&
-            is_in_same_time_slot(booking.start_time, booking.end_time, booking_to_approve.start_time, booking_to_approve.end_time) &&
-            booking.status == PENDING && booking.booking_id != booking_to_approve.booking_id) {
-            booking.status = REJECTED;
-            fseek(bookings_file, -sizeof(Booking), SEEK_CUR);
-            fwrite(&booking, sizeof(Booking), 1, bookings_file);
-        }
         if (booking.booking_id == booking_to_approve.booking_id) {
-            booking.status = APPROVED;
+            booking = booking_to_approve;
             fseek(bookings_file, -sizeof(Booking), SEEK_CUR);
             fwrite(&booking, sizeof(Booking), 1, bookings_file);
             approved_booking = booking;
+            continue;
+        }
+        if (is_booking_conflict(booking, booking_to_approve) && booking.status == PENDING) {
+            booking.status = REJECTED;
+            fseek(bookings_file, -sizeof(Booking), SEEK_CUR);
+            fwrite(&booking, sizeof(Booking), 1, bookings_file);
         }
     }
     unlock_writing_for_file(bookings_file);
@@ -767,4 +867,28 @@ void handle_reject_booking(int socket_fd, User *user, Header header) {
     send_header_and_payload(socket_fd, response_header, (const char *)&rejected_booking);
 }
 
+void handle_bookings_list_superuser(int socket_fd, User *user, Header header) {
+    if (header.payload_size != 0) {
+        print_error_and_exit("Invalid payload for list bookings operation", SERVER_CHILD_ERROR_READ);
+    }
+    booking_filter filter = match_by_any;
+    booking_filter_context filter_context = {0};
+    int booking_count = count_bookings_by_filter(filter, &filter_context);
+    if (booking_count < 0) {
+        perror("Failed to count bookings by filter");
+        Header response_header = {0};
+        response_header.operation = OPCODE_ERROR;
+        response_header.payload_size = 0;
+        send_header_and_payload(socket_fd, response_header, NULL);
+        return;
+    }
+    Header response_header = {0};
+    response_header.operation = OPCODE_OK;
+    response_header.payload_size = booking_count * sizeof(Booking);
+    send_header_and_payload(socket_fd, response_header, NULL);
+    int sent_count = send_bookings_by_filter(socket_fd, filter, &filter_context, booking_count);
+    if (sent_count < booking_count) {
+        print_error_and_exit("Failed to send bookings by filter", SERVER_CHILD_ERROR_READ);
+    }
+}
 // EOF
