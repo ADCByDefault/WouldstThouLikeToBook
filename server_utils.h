@@ -16,16 +16,11 @@ typedef struct booking_filter_context {
 } booking_filter_context;
 typedef bool (*booking_filter)(Booking *booking, booking_filter_context *filter_context);
 
-typedef struct TimeRange {
-    uint64_t start_time;
-    uint64_t end_time;
-} TimeRange;
-
-typedef struct User_Save {
+typedef struct UserSave {
     char username[USERNAME_MAX_LENGTH];
     char password[PASSWORD_MAX_LENGTH];
     UserType user_type;
-} User_Save;
+} UserSave;
 
 typedef void (*OperationHandler)(int socket_fd, User *user, Header header);
 typedef struct Handler {
@@ -33,7 +28,7 @@ typedef struct Handler {
     OperationHandler handler;
 } Handler;
 
-extern const Handler HANDLERS[10];
+extern const Handler HANDLERS[16];
 
 // check if users file, rooms file, and bookings file exist, if not create them
 // and try to read server settings
@@ -77,30 +72,41 @@ Booking create_booking(Booking new_booking);
 // match any
 bool match_by_any(Booking *booking, booking_filter_context *filter_context);
 // context->search_value should be a pointer to a char array (username)
-bool match_by_username(Booking *booking, booking_filter_context *context);
+bool match_by_username_substring(Booking *booking, booking_filter_context *filter_context);
+// context->search_value should be a pointer to a char array (username)
+bool match_by_username_exact(Booking *booking, booking_filter_context *filter_context);
+// context->search_value should be a pointer to a char array (username)
+bool match_by_username_from_current_time_substring(Booking *booking, booking_filter_context *filter_context);
+// context->search_value should be a pointer to a char array (username)
+bool match_by_username_from_current_time_exact(Booking *booking, booking_filter_context *filter_context);
 // context->search_value should be a pointer to a room_id (uint32_t)
-bool match_by_booking_id(Booking *booking, booking_filter_context *context);
+bool match_by_booking_id(Booking *booking, booking_filter_context *filter_context);
 // context->search_value should be a pointer to a room_id (uint32_t)
 bool match_by_room_id(Booking *booking, booking_filter_context *filter_context);
-// context->search_value should be a pointer to a char array (username)
-/// context->user should be a pointer to a User struct
-bool match_by_room_is_mask_username(Booking *booking, booking_filter_context *filter_context);
 // context->search_value should be a pointer to a room_id (uint32_t)
 bool match_by_room_id_from_current_time(Booking *booking, booking_filter_context *filter_context);
 // context->search_value should be a pointer to a room_id (uint32_t)
-// context->user should be a pointer to a User struct
-bool match_by_room_id_from_current_time_and_mask_username(Booking *booking, booking_filter_context *filter_context);
+bool match_by_room_id_from_current_time_not_rejected(Booking *booking, booking_filter_context *filter_context);
 // context->search_value should be a pointer to a TimeRange struct
-bool match_by_time_range(Booking *booking, booking_filter_context *filter_context);
+bool match_by_time_range_user(Booking *booking, booking_filter_context *filter_context);
+// context->search_value should be a pointer to a TimeRange struct
+bool match_by_time_range_superuser(Booking *booking, booking_filter_context *filter_context);
 // context->search_value should be a pointer to a BookingStatus enum
-bool match_by_status(Booking *booking, booking_filter_context *filter_context);
+bool match_by_status_user(Booking *booking, booking_filter_context *filter_context);
+// context->search_value should be a pointer to a BookingStatus enum
+bool match_by_status_superuser(Booking *booking, booking_filter_context *filter_context);
+// context->search_value should be a pointer to a BookingStatus enum
+bool match_by_status_from_current_time_user(Booking *booking, booking_filter_context *filter_context);
+// context->search_value should be a pointer to a BookingStatus enum
+bool match_by_status_from_current_time_superuser(Booking *booking, booking_filter_context *filter_context);
 // find the first booking that matches the given filter and filter_context
 Booking find_first_booking_by_filter(booking_filter filter, booking_filter_context *filter_context);
 // count bookings that match the given filter and search value
 int count_bookings_by_filter(booking_filter filter, booking_filter_context *filter_context);
 // send bookings that match the given filter and search value to the client
 // returns the number of bookings sent, or -1 on error
-int send_bookings_by_filter(int socket_fd, booking_filter filter, booking_filter_context *filter_context, int max_bookings_to_send);
+int send_bookings_by_filter(int socket_fd, booking_filter filter, booking_filter_context *filter_context, int max_bookings_to_send,
+                            bool should_mask, User *user);
 void handle_users_bookings_list(int socket_fd, User *user, Header header);
 void handle_create_booking(int socket_fd, User *user, Header header);
 
@@ -112,6 +118,13 @@ Booking reject_booking(Booking booking_to_reject);
 void handle_approve_booking(int socket_fd, User *user, Header header);
 // handle reject booking request from client
 void handle_reject_booking(int socket_fd, User *user, Header header);
-
 // sends the list of all bookings to the client, regardless of user
 void handle_bookings_list_superuser(int socket_fd, User *user, Header header);
+
+void handle_bookings_list_room_id(int socket_fd, User *user, Header header);
+void handle_bookings_list_username(int socket_fd, User *user, Header header);
+void handle_bookings_list_booking_id(int socket_fd, User *user, Header header);
+void handle_bookings_list_status(int socket_fd, User *user, Header header);
+void handle_bookings_list_time_range(int socket_fd, User *user, Header header);
+
+void handle_force_booking_status(int socket_fd, User *user, Header header);

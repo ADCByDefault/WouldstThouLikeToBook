@@ -19,19 +19,25 @@ typedef struct User {
 typedef enum OpCode {
     OPCODE_UNDEFINED = 0,
     OPCODE_CANCEL,
-    // client opcodes
+
     OPCODE_LOGIN = 100,
     OPCODE_SIGNUP,
     OPCODE_LOGOUT,
     OPCODE_CREATE_BOOKING,
     OPCODE_ROOMS_LIST,
+    OPCODE_BOOKINGS_LIST_BY_ROOM_ID,
     OPCODE_USERS_BOOKINGS_LIST,
-    // client opcodes specific to superuser
+    OPCODE_BOOKINGS_LIST_BY_BOOKING_ID,
+    OPCODE_BOOKINGS_LIST_BY_STATUS,
+    OPCODE_BOOKINGS_LIST_BY_TIME_RANGE,
+
     OPCODE_CREATE_ROOM = 150,
     OPCODE_APPROVE_BOOKING,
     OPCODE_REJECT_BOOKING,
     OPCODE_BOOKINGS_LIST_SUPERUSER,
-    // server opcodes
+    OPCODE_BOOKINGS_LIST_BY_USERNAME,
+    OPCODE_FORCE_BOOKING_STATUS,
+
     OPCODE_OK = 200,
     OPCODE_ERROR,
 } OpCode;
@@ -41,9 +47,9 @@ typedef struct OpcodeDescription {
     const char *description;
 } OpcodeDescription;
 
-extern const OpCode GUEST_OPCODES[9];
-extern const OpCode USER_OPCODES[5];
-extern const OpCode SUPERUSER_OPCODES[3];
+extern const OpCode GUEST_OPCODES[5];
+extern const OpCode USER_OPCODES[8];
+extern const OpCode SUPERUSER_OPCODES[11];
 extern const OpcodeDescription OPCODE_DESCRIPTIONS[];
 
 typedef struct Room {
@@ -60,6 +66,11 @@ typedef struct Booking {
     uint64_t end_time;
     uint8_t status;
 } Booking;
+
+typedef struct TimeRange {
+    uint64_t start_time;
+    uint64_t end_time;
+} TimeRange;
 
 typedef struct LoginCredentials {
     char username[USERNAME_MAX_LENGTH];
@@ -81,6 +92,8 @@ Room room_hton(Room room);
 Room room_ntoh(Room room);
 Booking booking_hton(Booking booking);
 Booking booking_ntoh(Booking booking);
+TimeRange time_range_hton(TimeRange time_range);
+TimeRange time_range_ntoh(TimeRange time_range);
 
 // returns sanitized credentials
 void sanitize_string(char *str, size_t max_length);

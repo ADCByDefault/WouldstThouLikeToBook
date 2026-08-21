@@ -13,31 +13,51 @@
 #include <unistd.h>
 
 // for testing purposes giving privilage to guest
-const OpCode GUEST_OPCODES[9] = {OPCODE_LOGIN,
-                                 OPCODE_SIGNUP,
-                                 OPCODE_ROOMS_LIST,
-                                 OPCODE_CREATE_ROOM,
-                                 OPCODE_USERS_BOOKINGS_LIST,
-                                 OPCODE_CREATE_BOOKING,
-                                 OPCODE_APPROVE_BOOKING,
-                                 OPCODE_REJECT_BOOKING,
-                                 OPCODE_BOOKINGS_LIST_SUPERUSER};
-const OpCode USER_OPCODES[5] = {OPCODE_CREATE_BOOKING, OPCODE_ROOMS_LIST, OPCODE_CREATE_BOOKING, OPCODE_USERS_BOOKINGS_LIST, OPCODE_LOGOUT};
-const OpCode SUPERUSER_OPCODES[3] = {OPCODE_ROOMS_LIST, OPCODE_CREATE_ROOM, OPCODE_LOGOUT};
+const OpCode GUEST_OPCODES[5] = {
+    OPCODE_LOGIN, OPCODE_SIGNUP, OPCODE_ROOMS_LIST, OPCODE_BOOKINGS_LIST_BY_ROOM_ID, OPCODE_BOOKINGS_LIST_BY_TIME_RANGE,
+};
+const OpCode USER_OPCODES[8] = {OPCODE_ROOMS_LIST,
+                                OPCODE_CREATE_BOOKING,
+                                OPCODE_USERS_BOOKINGS_LIST,
+                                OPCODE_BOOKINGS_LIST_BY_ROOM_ID,
+                                OPCODE_BOOKINGS_LIST_BY_BOOKING_ID,
+                                OPCODE_BOOKINGS_LIST_BY_STATUS,
+                                OPCODE_BOOKINGS_LIST_BY_TIME_RANGE,
+                                OPCODE_LOGOUT};
+const OpCode SUPERUSER_OPCODES[11] = {
+    OPCODE_LOGOUT,
+    OPCODE_BOOKINGS_LIST_BY_ROOM_ID,
+    OPCODE_BOOKINGS_LIST_BY_BOOKING_ID,
+    OPCODE_BOOKINGS_LIST_BY_STATUS,
+    OPCODE_BOOKINGS_LIST_BY_TIME_RANGE,
+    OPCODE_CREATE_ROOM,
+    OPCODE_APPROVE_BOOKING,
+    OPCODE_REJECT_BOOKING,
+    OPCODE_BOOKINGS_LIST_SUPERUSER,
+    OPCODE_BOOKINGS_LIST_BY_USERNAME,
+    OPCODE_FORCE_BOOKING_STATUS,
+};
 const OpcodeDescription OPCODE_DESCRIPTIONS[] = {
     {OPCODE_UNDEFINED, "Undefined"},
-    {OPCODE_LOGIN, "Login"},
-    {OPCODE_SIGNUP, "Signup"},
-    {OPCODE_CREATE_BOOKING, "Create Booking"},
-    {OPCODE_ROOMS_LIST, "Rooms List"},
     {OPCODE_OK, "OK"},
     {OPCODE_ERROR, "Error"},
+    {OPCODE_CANCEL, "Cancel Operation"},
+    {OPCODE_LOGIN, "Login"},
+    {OPCODE_SIGNUP, "Signup"},
+    {OPCODE_LOGOUT, "Logout"},
+    {OPCODE_ROOMS_LIST, "Rooms List"},
+    {OPCODE_CREATE_BOOKING, "Create Booking"},
     {OPCODE_CREATE_ROOM, "Create Room"},
     {OPCODE_APPROVE_BOOKING, "Approve Booking"},
     {OPCODE_REJECT_BOOKING, "Reject Booking"},
-    {OPCODE_BOOKINGS_LIST_SUPERUSER, "List Bookings Superuser"},
+    {OPCODE_BOOKINGS_LIST_SUPERUSER, "List All Bookings"},
     {OPCODE_USERS_BOOKINGS_LIST, "Users Bookings List"},
-    {OPCODE_LOGOUT, "Logout"},
+    {OPCODE_BOOKINGS_LIST_BY_ROOM_ID, "List Future Bookings by Room ID"},
+    {OPCODE_BOOKINGS_LIST_BY_USERNAME, "List Future Bookings by Username Substring"},
+    {OPCODE_BOOKINGS_LIST_BY_STATUS, "List Future Bookings by Status"},
+    {OPCODE_BOOKINGS_LIST_BY_TIME_RANGE, "List Bookings by Time Range"},
+    {OPCODE_BOOKINGS_LIST_BY_BOOKING_ID, "List Booking by Booking ID"},
+    {OPCODE_FORCE_BOOKING_STATUS, "Force Booking Status"},
 };
 
 Header header_hton(Header header) {
@@ -75,6 +95,16 @@ Booking booking_ntoh(Booking booking) {
     booking.start_time = be64toh(booking.start_time);
     booking.end_time = be64toh(booking.end_time);
     return booking;
+}
+TimeRange time_range_hton(TimeRange time_range) {
+    time_range.start_time = htobe64(time_range.start_time);
+    time_range.end_time = htobe64(time_range.end_time);
+    return time_range;
+}
+TimeRange time_range_ntoh(TimeRange time_range) {
+    time_range.start_time = be64toh(time_range.start_time);
+    time_range.end_time = be64toh(time_range.end_time);
+    return time_range;
 }
 
 void sanitize_string(char *str, size_t max_length) {

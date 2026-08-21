@@ -16,7 +16,7 @@ typedef struct Handeler {
     OperationHandler handler;
 } Handeler;
 
-extern const Handeler HANDLERS[10];
+extern const Handeler HANDLERS[16];
 
 // initializes the client socket and returns the socket file descriptor
 struct sockaddr_in initialize_client();
@@ -55,3 +55,11 @@ void handle_approve_booking(int socket_fd, User *user);
 void handle_reject_booking(int socket_fd, User *user);
 
 void handle_bookings_list_superuser(int socket_fd, User *user);
+
+void handle_bookings_list_room_id(int socket_fd, User *user);
+void handle_bookings_list_username(int socket_fd, User *user);
+void handle_bookings_list_booking_id(int socket_fd, User *user);
+void handle_bookings_list_status(int socket_fd, User *user);
+void handle_bookings_list_time_range(int socket_fd, User *user);
+
+void handle_force_booking_status(int socket_fd, User *user);
