@@ -34,27 +34,36 @@ int main(int argc, char const *argv[]) {
     int user_input;
     int operation_count = sizeof(HANDLERS) / sizeof(HANDLERS[0]);
     int read_count = 0;
-    print_info(user);
+    print_application_info(user);
     // Main loop for user interaction
     do {
         user_input = 0;
+        printf("\n/////////////////////////////////////////////////////");
         printf("\nEnter an OPCODE: ");
         fgets(buffer, sizeof(buffer), stdin);
-        read_count = sscanf(buffer, "%d", &user_input);
-        if (read_count != 1) {
-            printf("Invalid input.\n");
+        if (strcasestr(buffer, "help") != NULL) {
+            print_can_do_operations_by_type(user.user_type);
             continue;
         }
-        if (user_input == -1) { // Exit the application
-            printf("Exiting the application.\n");
+        read_count = sscanf(buffer, "%d", &user_input);
+        if (read_count != 1) {
+            print_error("Invalid input.\n");
+            continue;
+        }
+        if (user_input == -1) {
+            print_info("Exiting the application.\n");
             break;
         }
-        if (user_input == 0) { // Print application information
-            print_info(user);
+        if (user_input == 0) {
+            print_application_info(user);
+            continue;
+        }
+        if (is_valid_opcode(user_input) == false) {
+            print_error("Invalid OPCODE.\n");
             continue;
         }
         if (!is_valid_opcode_for_user_by_type(user_input, user.user_type)) {
-            printf("Invalid operation for your user type.\n");
+            print_error("Invalid OPCODE for your user type.\n");
             continue;
         }
         for (int i = 0; i < operation_count; i++) {

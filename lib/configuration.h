@@ -10,6 +10,14 @@
 #define ROOM_NAME_MAX_LENGTH 32
 #define BOOKING_TIME_SLOT_SECONDS 3600
 
+// Codici ANSI per i colori del terminale
+#define C_RESET "\033[0m"
+#define C_RED "\033[31m"
+#define C_GREEN "\033[32m"
+#define C_YELLOW "\033[33m"
+#define C_CYAN "\033[36m"
+#define C_BOLD "\033[1m"
+
 // buffer sizes
 #define MAX_BUFFER_SIZE 1024
 #define PORT_STRING_SIZE 6

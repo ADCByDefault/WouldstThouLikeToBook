@@ -561,7 +561,7 @@ bool match_by_time_range_superuser(Booking *booking, booking_filter_context *fil
 }
 bool match_by_status_user(Booking *booking, booking_filter_context *filter_context) {
     BookingStatus *status = (BookingStatus *)filter_context->search_value;
-    return booking->status == *status;
+    return booking->status == *status && strcmp(booking->username, filter_context->user->username) == 0;
 }
 bool match_by_status_superuser(Booking *booking, booking_filter_context *filter_context) {
     BookingStatus *status = (BookingStatus *)filter_context->search_value;
@@ -569,8 +569,8 @@ bool match_by_status_superuser(Booking *booking, booking_filter_context *filter_
 }
 bool match_by_status_from_current_time_user(Booking *booking, booking_filter_context *filter_context) {
     BookingStatus *status = (BookingStatus *)filter_context->search_value;
-    if (booking->end_time < time(NULL)) {
-        return false; // Booking is in the past
+    if (booking->end_time < time(NULL) || strcmp(booking->username, filter_context->user->username) != 0) {
+        return false; // Booking is in the past or doesn't belong to the user
     }
     return booking->status == *status;
 }

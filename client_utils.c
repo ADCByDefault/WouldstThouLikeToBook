@@ -44,9 +44,13 @@ struct sockaddr_in initialize_client() {
     return server_address;
 }
 
+void print_success(const char *message) { printf(C_GREEN C_BOLD "[ OK ] " C_RESET "%s\n", message); }
+void print_error(const char *message) { printf(C_RED C_BOLD "[ ERRORE ] " C_RESET "%s\n", message); }
+void print_warning(const char *message) { printf(C_YELLOW C_BOLD "[ ATTENZIONE ] " C_RESET "%s\n", message); }
+void print_info(const char *message) { printf(C_CYAN C_BOLD "[ INFO ] " C_RESET "%s\n", message); }
 void print_error_and_exit(const char *error_message, int error_code) {
     if (error_code == 0) {
-        fprintf(stderr, "Error: %s\n", error_message);
+        fprintf(stderr, "%sError: %s%s\n", C_RED C_BOLD, error_message, C_RESET);
         exit(EXIT_FAILURE);
     }
     perror(error_message);
@@ -63,9 +67,9 @@ void flush_stdin() {
     }
 }
 
-void print_info(User user) {
+void print_application_info(User user) {
     UserType user_type = user.user_type;
-    printf("\n/////////////////////////////\n");
+    printf("\n\n/////////////////////////////////////////////////////\n");
     printf("Client Application Information:\n");
     printf("Enter -1 to exit the application.\n");
     printf("Enter 0 to print this information.\n");
@@ -139,8 +143,8 @@ void handle_login(int socket_fd, User *user) {
         print_error_and_exit("Failed to read response header from server. Terminating.", CLIENT_ERROR_READ);
     }
     response_header = header_ntoh(response_header);
-    if (response_header.operation == OPCODE_ERROR) {
-        printf("login failed, please check your username and password\n");
+    if (response_header.operation == OPCODE_ERROR && response_header.payload_size == 0) {
+        print_error("login failed, check your username and password\n");
         return;
     }
     if (response_header.operation != OPCODE_OK || response_header.payload_size != sizeof(response_user)) {
@@ -151,8 +155,8 @@ void handle_login(int socket_fd, User *user) {
         print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
     }
     *user = user_ntoh(response_user);
-    printf("Login successful. Logged in as: %s with type: %d\n", user->username, user->user_type);
-    print_info(*user);
+    print_success("Login successful.");
+    print_application_info(*user);
 }
 void handle_signup(int socket_fd, User *user) {
     // getting username and password from user input
@@ -177,8 +181,8 @@ void handle_signup(int socket_fd, User *user) {
     }
     response_header = header_ntoh(response_header);
     // Response (sending is successful)
-    if (response_header.operation == OPCODE_ERROR) {
-        printf("signup failed, try with different credentials\n");
+    if (response_header.operation == OPCODE_ERROR && response_header.payload_size == 0) {
+        print_error("signup failed, try with different credentials\n");
         return;
     }
     if (response_header.operation != OPCODE_OK || response_header.payload_size != sizeof(response_user)) {
@@ -189,7 +193,7 @@ void handle_signup(int socket_fd, User *user) {
         print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
     }
     *user = user_ntoh(response_user);
-    printf("Signup successful. Logged in as: %s with type: %d\n", user->username, user->user_type);
+    print_success("Signup successful.");
 }
 void handle_logout(int socket_fd, User *user) {
     Header header = {OPCODE_LOGOUT, 0};
@@ -203,8 +207,8 @@ void handle_logout(int socket_fd, User *user) {
         print_error_and_exit("Failed to read response header from server. Terminating.", CLIENT_ERROR_READ);
     }
     response_header = header_ntoh(response_header);
-    if (response_header.operation == OPCODE_ERROR) {
-        printf("Logout failed. An error occurred on the server.\n");
+    if (response_header.operation == OPCODE_ERROR && response_header.payload_size == 0) {
+        print_error("Logout failed. An error occurred on the server.\n");
         return;
     }
     if (response_header.operation != OPCODE_OK || response_header.payload_size != 0) {
@@ -212,10 +216,17 @@ void handle_logout(int socket_fd, User *user) {
     }
     strcpy(user->username, "guest");
     user->user_type = GUEST;
-    printf("Logged out successfully.\n");
+    print_warning("Logged out successfully.\n");
 }
 
-void print_room(Room room) { printf("Room: id=%u name=%s\n", room.room_id, room.room_name); }
+void print_room_header() {
+    printf("\n" C_BOLD "%-5s | %-32s" C_RESET "\n", "ID", "Name");
+    printf("----- + --------------------------------\n");
+}
+void print_room(Room room, int row_index) {
+    const char *row_color = (row_index % 2 == 0) ? C_RESET : C_CYAN;
+    printf("%s%-5u | %-32s%s\n", row_color, room.room_id, room.room_name, C_RESET);
+}
 void handle_create_room(int socket_fd, User *user) {
     Room new_room = {0};
     printf("Enter room name: ");
@@ -232,8 +243,8 @@ void handle_create_room(int socket_fd, User *user) {
         print_error_and_exit("Failed to read response header from server. Terminating.", CLIENT_ERROR_READ);
     }
     response_header = header_ntoh(response_header);
-    if (response_header.operation == OPCODE_ERROR) {
-        printf("Create room failed. Room may already exist or an error occurred.\n");
+    if (response_header.operation == OPCODE_ERROR && response_header.payload_size == 0) {
+        print_error("Create room failed. Room may already exist or an error occurred.\n");
         return;
     }
     if (response_header.operation != OPCODE_OK || response_header.payload_size != sizeof(Room)) {
@@ -245,8 +256,9 @@ void handle_create_room(int socket_fd, User *user) {
         print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
     }
     created_room = room_ntoh(created_room);
-    printf("Room created successfully:\n");
-    print_room(created_room);
+    print_success("Room created successfully:\n");
+    print_room_header();
+    print_room(created_room, 1);
 }
 void handle_list_rooms(int socket_fd, User *user) {
     Header header = {OPCODE_ROOMS_LIST, 0};
@@ -260,47 +272,54 @@ void handle_list_rooms(int socket_fd, User *user) {
         print_error_and_exit("Failed to read response header from server. Terminating.", CLIENT_ERROR_READ);
     }
     response_header = header_ntoh(response_header);
-    if (response_header.operation == OPCODE_ERROR) {
-        printf("List rooms failed. An error occurred on the server.\n");
+    if (response_header.operation == OPCODE_ERROR && response_header.payload_size == 0) {
+        print_error("List rooms failed. An error occurred on the server.\n");
         return;
     }
     if (response_header.operation != OPCODE_OK || response_header.payload_size % sizeof(Room) != 0) {
         print_error_and_exit("Received unexpected response from server. Terminating.", CLIENT_ERROR_READ);
     }
-    if (response_header.payload_size == 0) {
-        printf("No rooms found in database.\n");
-        return;
-    }
+    printf("Rooms list:\n");
     size_t room_count = response_header.payload_size / sizeof(Room);
     Room room = {0};
-    printf("Rooms list:\n");
     if (room_count == 0) {
-        printf("No rooms found in database.\n");
+        print_info("No rooms found in database.\n");
         return;
     }
+    print_room_header();
     for (size_t i = 0; i < room_count; i++) {
         bytes_read = read_exact(socket_fd, &room, sizeof(Room));
         if (bytes_read < sizeof(Room)) {
             print_error_and_exit("Failed to read complete room from server. Terminating.", CLIENT_ERROR_READ);
         }
         room = room_ntoh(room);
-        print_room(room);
+        print_room(room, i);
     }
 }
 
 char *booking_status_to_string(uint8_t status) {
     switch (status) {
     case PENDING:
-        return "Pending";
+        return "[🟡] PENDING";
     case APPROVED:
-        return "Approved";
+        return "[🟢] APPROVED";
     case REJECTED:
-        return "Rejected";
+        return "[🔴] REJECTED";
     default:
-        return "Unknown";
+        return "[❓] UNKNOWN";
     }
 }
-void print_booking(Booking booking) {
+void print_booking_header() {
+    printf("\n" C_BOLD "%-5s | %-7s | %-32s | %-16s | %-16s | %-16s" C_RESET "\n", "ID", "Room ID", "Username", "Start Time", "End Time",
+           "Status");
+    printf("----- + ------- + -------------------------------- + -------------------- + -------------------- + ----------------\n");
+}
+void print_booking(Booking booking, int row_index) {
+    const char *row_color = (row_index % 2 == 0) ? C_RESET : C_CYAN;
+    char booking_id_str[16] = "???";
+    if (booking.booking_id > 0) {
+        snprintf(booking_id_str, sizeof(booking_id_str), "%u", booking.booking_id);
+    }
     char *status_str = booking_status_to_string(booking.status);
     char start_time_str[32];
     struct tm *start_tm = localtime((time_t *)&booking.start_time);
@@ -315,8 +334,8 @@ void print_booking(Booking booking) {
         strcpy(is_expired_str, " (expired)");
     }
 
-    printf("Booking: id=%u room_id=%u username=%s start_time=%s end_time=%s status=%s%s\n", booking.booking_id, booking.room_id,
-           booking.username, start_time_str, end_time_str, status_str, is_expired_str);
+    printf("%s%-5s | %-7u | %-32s | %-16s | %-16s | %-16s%s%s\n", row_color, booking_id_str, booking.room_id, booking.username,
+           start_time_str, end_time_str, status_str, is_expired_str, C_RESET);
 }
 bool is_valid_date(int day, int month, int year) {
     if (year < 1900 || year > 2100) {
@@ -362,7 +381,7 @@ void handle_create_booking(int socket_fd, User *user) {
     }
     response_header = header_ntoh(response_header);
     if (response_header.operation == OPCODE_ERROR && response_header.payload_size == 0) {
-        printf("Create booking failed.\n");
+        print_error("Create booking failed.\n");
         return;
     }
     if (response_header.operation != OPCODE_OK || response_header.payload_size % sizeof(Booking) != 0) {
@@ -375,6 +394,7 @@ void handle_create_booking(int socket_fd, User *user) {
     if (booking_count == 0) {
         printf("No existing bookings for room ID %u.\n", room.room_id);
     } else {
+        print_booking_header();
         for (int i = 0; i < booking_count; i++) {
             Booking booking = {0};
             bytes_read = read_exact(socket_fd, &booking, sizeof(Booking));
@@ -382,7 +402,7 @@ void handle_create_booking(int socket_fd, User *user) {
                 print_error_and_exit("Failed to read complete booking from server. Terminating.", CLIENT_ERROR_READ);
             }
             booking = booking_ntoh(booking);
-            print_booking(booking);
+            print_booking(booking, i);
         }
     }
     // get booking details from user
@@ -452,7 +472,7 @@ void handle_create_booking(int socket_fd, User *user) {
     }
     response_header = header_ntoh(response_header);
     if (response_header.operation == OPCODE_ERROR && response_header.payload_size == 0) {
-        printf("Create booking failed.\n");
+        print_error("Create booking failed.\n");
         return;
     }
     if (response_header.operation != OPCODE_OK || response_header.payload_size != sizeof(Booking)) {
@@ -463,11 +483,12 @@ void handle_create_booking(int socket_fd, User *user) {
     if (bytes_read < response_header.payload_size) {
         print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
     }
+    print_success("Booking created successfully:\n");
     created_booking = booking_ntoh(created_booking);
-    print_booking(created_booking);
+    print_booking_header();
+    print_booking(created_booking, 1);
 }
 void handle_users_bookings_list(int socket_fd, User *user) {
-    printf("Listing bookings...\n");
     Header header = {OPCODE_USERS_BOOKINGS_LIST, 0};
     int bytes_sent = send_header_and_payload(socket_fd, header, NULL);
     if (bytes_sent < HEADER_SIZE) {
@@ -479,10 +500,10 @@ void handle_users_bookings_list(int socket_fd, User *user) {
     }
     header = header_ntoh(header);
     if (header.operation == OPCODE_ERROR && header.payload_size == 0) {
-        printf("Failed to retrieve bookings list.\n");
+        print_error("Failed to retrieve bookings list.\n");
         return;
     }
-    if(header.operation != OPCODE_OK || header.payload_size % sizeof(Booking) != 0) {
+    if (header.operation != OPCODE_OK || header.payload_size % sizeof(Booking) != 0) {
         print_error_and_exit("Received unexpected response from server. Terminating.", CLIENT_ERROR_READ);
     }
     int list_size = header.payload_size / sizeof(Booking);
@@ -492,6 +513,7 @@ void handle_users_bookings_list(int socket_fd, User *user) {
     }
     printf("Bookings List for user: %s\n", user->username);
     printf("Total bookings: %d\n", list_size);
+    print_booking_header();
     bytes_read = 0;
     for (int i = 0; i < list_size; i++) {
         Booking booking = {0};
@@ -502,13 +524,13 @@ void handle_users_bookings_list(int socket_fd, User *user) {
         booking = booking_ntoh(booking);
         char *start_time_str = ctime((const time_t *)&booking.start_time);
         char *end_time_str = ctime((const time_t *)&booking.end_time);
-        print_booking(booking);
+        print_booking(booking, i);
     }
 }
 
 void handle_approve_booking(int socket_fd, User *user) {
     Booking booking = {0};
-    printf("Approving a booking, will cause conflicting bookings to be rejected.\n");
+    print_warning("Approving a booking, will cause conflicting bookings to be rejected.\n");
     printf("Enter booking ID to approve: ");
     char buffer_input[64];
     fgets(buffer_input, sizeof(buffer_input), stdin);
@@ -532,7 +554,7 @@ void handle_approve_booking(int socket_fd, User *user) {
     }
     response_header = header_ntoh(response_header);
     if (response_header.operation == OPCODE_ERROR && response_header.payload_size == 0) {
-        printf("Approve booking failed.\n");
+        print_error("Approve booking failed.\n");
         return;
     }
     if (response_header.operation != OPCODE_OK || response_header.payload_size != sizeof(Booking)) {
@@ -544,12 +566,13 @@ void handle_approve_booking(int socket_fd, User *user) {
         print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
     }
     Booking approved_booking = booking_ntoh(response_booking);
-    printf("Booking approved:\n");
-    print_booking(approved_booking);
+    print_success("Booking approved:\n");
+    print_booking_header();
+    print_booking(approved_booking, 1);
 }
 void handle_reject_booking(int socket_fd, User *user) {
     Booking booking = {0};
-    printf("Enter booking ID to reject: ");
+    print_warning("Enter booking ID to reject: ");
     char buffer_input[64];
     uint32_t booking_id;
     fgets(buffer_input, sizeof(buffer_input), stdin);
@@ -572,7 +595,7 @@ void handle_reject_booking(int socket_fd, User *user) {
     }
     response_header = header_ntoh(response_header);
     if (response_header.operation == OPCODE_ERROR && response_header.payload_size == 0) {
-        printf("Reject booking failed.\n");
+        print_error("Reject booking failed.\n");
         return;
     }
     if (response_header.operation != OPCODE_OK || response_header.payload_size != sizeof(Booking)) {
@@ -584,8 +607,9 @@ void handle_reject_booking(int socket_fd, User *user) {
         print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
     }
     Booking rejected_booking = booking_ntoh(response_booking);
-    printf("Booking rejected:\n");
-    print_booking(rejected_booking);
+    print_success("Booking rejected:\n");
+    print_booking_header();
+    print_booking(rejected_booking, 1);
 }
 
 void handle_bookings_list_superuser(int socket_fd, User *user) {
@@ -601,7 +625,7 @@ void handle_bookings_list_superuser(int socket_fd, User *user) {
     }
     header = header_ntoh(header);
     if (header.operation == OPCODE_ERROR && header.payload_size == 0) {
-        printf("Failed to retrieve bookings list.\n");
+        print_info("Failed to retrieve bookings list.\n");
         return;
     }
     if (header.operation != OPCODE_OK || header.payload_size % sizeof(Booking) != 0) {
@@ -609,11 +633,12 @@ void handle_bookings_list_superuser(int socket_fd, User *user) {
     }
     int list_size = header.payload_size / sizeof(Booking);
     if (list_size == 0) {
-        printf("No bookings found in the system.\n");
+        print_info("No bookings found in the system.\n");
         return;
     }
     printf("Bookings List:\n");
     printf("Total bookings: %d\n", list_size);
+    print_booking_header();
     bytes_read = 0;
     for (int i = 0; i < list_size; i++) {
         Booking booking = {0};
@@ -622,7 +647,7 @@ void handle_bookings_list_superuser(int socket_fd, User *user) {
             print_error_and_exit("Failed to read complete booking from server. Terminating.", CLIENT_ERROR_READ);
         }
         booking = booking_ntoh(booking);
-        print_booking(booking);
+        print_booking(booking, i);
     }
 }
 
@@ -638,8 +663,8 @@ void handle_bookings_list_room_id(int socket_fd, User *user) {
         printf("Invalid room ID. Listing cancelled.\n");
         return;
     }
-    Header header = {OPCODE_BOOKINGS_LIST_BY_ROOM_ID, sizeof(room)};
     room.room_id = room_id;
+    Header header = {OPCODE_BOOKINGS_LIST_BY_ROOM_ID, sizeof(room)};
     room = room_hton(room);
     int bytes_sent = send_header_and_payload(socket_fd, header, (const char *)&room);
     if (bytes_sent < HEADER_SIZE + header.payload_size) {
@@ -651,7 +676,7 @@ void handle_bookings_list_room_id(int socket_fd, User *user) {
     }
     header = header_ntoh(header);
     if (header.operation == OPCODE_ERROR && header.payload_size == 0) {
-        printf("Failed to retrieve bookings list.\n");
+        print_error("Failed to retrieve bookings list.\n");
         return;
     }
     if (header.operation != OPCODE_OK || header.payload_size % sizeof(Booking) != 0) {
@@ -659,11 +684,12 @@ void handle_bookings_list_room_id(int socket_fd, User *user) {
     }
     int list_size = header.payload_size / sizeof(Booking);
     if (list_size == 0) {
-        printf("No bookings found for room ID: %u\n", room_id);
+        print_info("No bookings found.%u\n");
         return;
     }
     printf("Bookings List for room ID: %u\n", room_id);
     printf("Total bookings: %d\n", list_size);
+    print_booking_header();
     bytes_read = 0;
     for (int i = 0; i < list_size; i++) {
         Booking booking = {0};
@@ -672,7 +698,7 @@ void handle_bookings_list_room_id(int socket_fd, User *user) {
             print_error_and_exit("Failed to read complete booking from server. Terminating.", CLIENT_ERROR_READ);
         }
         booking = booking_ntoh(booking);
-        print_booking(booking);
+        print_booking(booking, i);
     }
 }
 void handle_bookings_list_username(int socket_fd, User *user) {
@@ -698,7 +724,7 @@ void handle_bookings_list_username(int socket_fd, User *user) {
     }
     header = header_ntoh(header);
     if (header.operation == OPCODE_ERROR && header.payload_size == 0) {
-        printf("Failed to retrieve bookings list.\n");
+        print_error("Failed to retrieve bookings list.\n");
         return;
     }
     if (header.operation != OPCODE_OK || header.payload_size % sizeof(Booking) != 0) {
@@ -706,11 +732,12 @@ void handle_bookings_list_username(int socket_fd, User *user) {
     }
     int list_size = header.payload_size / sizeof(Booking);
     if (list_size == 0) {
-        printf("No bookings found for username: %s\n", username);
+        print_info("No bookings found.\n");
         return;
     }
     printf("Bookings List for username: %s\n", username);
     printf("Total bookings: %d\n", list_size);
+    print_booking_header();
     bytes_read = 0;
     for (int i = 0; i < list_size; i++) {
         Booking booking = {0};
@@ -719,7 +746,7 @@ void handle_bookings_list_username(int socket_fd, User *user) {
             print_error_and_exit("Failed to read complete booking from server. Terminating.", CLIENT_ERROR_READ);
         }
         booking = booking_ntoh(booking);
-        print_booking(booking);
+        print_booking(booking, i);
     }
 }
 void handle_bookings_list_booking_id(int socket_fd, User *user) {
@@ -728,11 +755,13 @@ void handle_bookings_list_booking_id(int socket_fd, User *user) {
     char buffer_input[64];
     printf("Enter booking ID to list: ");
     fgets(buffer_input, sizeof(buffer_input), stdin);
-    int read_count = sscanf(buffer_input, "%u", &request_booking.booking_id);
-    if (read_count != 1 || request_booking.booking_id <= 0) {
+    int booking_id;
+    int read_count = sscanf(buffer_input, "%u", &booking_id);
+    if (read_count != 1 || booking_id <= 0) {
         printf("Invalid booking ID. Listing cancelled.\n");
         return;
     }
+    request_booking.booking_id = booking_id;
     Header header = {OPCODE_BOOKINGS_LIST_BY_BOOKING_ID, sizeof(request_booking)};
     request_booking = booking_hton(request_booking);
     int bytes_sent = send_header_and_payload(socket_fd, header, (const char *)&request_booking);
@@ -744,8 +773,8 @@ void handle_bookings_list_booking_id(int socket_fd, User *user) {
         print_error_and_exit("Failed to read response header from server. Terminating.", CLIENT_ERROR_READ);
     }
     Header response_header = header_ntoh(header);
-    if (response_header.operation == OPCODE_ERROR || response_header.payload_size == 0) {
-        printf("Failed to retrieve booking.\n");
+    if (response_header.operation == OPCODE_ERROR && response_header.payload_size == 0) {
+        print_error("Failed to retrieve booking.\n");
         return;
     }
     if (response_header.operation != OPCODE_OK) {
@@ -761,7 +790,8 @@ void handle_bookings_list_booking_id(int socket_fd, User *user) {
     }
     response_booking = booking_ntoh(response_booking);
     printf("Booking details:\n");
-    print_booking(response_booking);
+    print_booking_header();
+    print_booking(response_booking, 1);
 }
 void handle_bookings_list_time_range(int socket_fd, User *user) {
     printf("Listing bookings by time range...\n");
@@ -807,7 +837,7 @@ void handle_bookings_list_time_range(int socket_fd, User *user) {
     }
     header = header_ntoh(header);
     if (header.operation == OPCODE_ERROR || header.payload_size == 0) {
-        printf("Failed to retrieve bookings list.\n");
+        print_error("Failed to retrieve bookings list.\n");
         return;
     }
     if (header.payload_size % sizeof(Booking) != 0 || header.operation != OPCODE_OK) {
@@ -815,11 +845,12 @@ void handle_bookings_list_time_range(int socket_fd, User *user) {
     }
     int list_size = header.payload_size / sizeof(Booking);
     if (list_size == 0) {
-        printf("No bookings found in the specified time range.\n");
+        print_info("No bookings found in the specified time range.\n");
         return;
     }
     printf("Bookings List in the specified time range:\n");
     printf("Total bookings: %d\n", list_size);
+    print_booking_header();
     bytes_read = 0;
     for (int i = 0; i < list_size; i++) {
         Booking booking = {0};
@@ -828,7 +859,7 @@ void handle_bookings_list_time_range(int socket_fd, User *user) {
             print_error_and_exit("Failed to read complete booking from server. Terminating.", CLIENT_ERROR_READ);
         }
         booking = booking_ntoh(booking);
-        print_booking(booking);
+        print_booking(booking, i);
     }
 }
 void handle_bookings_list_status(int socket_fd, User *user) {
@@ -853,7 +884,7 @@ void handle_bookings_list_status(int socket_fd, User *user) {
     }
     header = header_ntoh(header);
     if (header.operation == OPCODE_ERROR || header.payload_size == 0) {
-        printf("Failed to retrieve bookings list.\n");
+        print_error("Failed to retrieve bookings list.\n");
         return;
     }
     if (header.payload_size % sizeof(Booking) != 0 || header.operation != OPCODE_OK) {
@@ -861,11 +892,12 @@ void handle_bookings_list_status(int socket_fd, User *user) {
     }
     int list_size = header.payload_size / sizeof(Booking);
     if (list_size == 0) {
-        printf("No bookings found with the specified status.\n");
+        print_info("No bookings found with the specified status.\n");
         return;
     }
     printf("Bookings List with status %s:\n", booking_status_to_string(status));
     printf("Total bookings: %d\n", list_size);
+    print_booking_header();
     bytes_read = 0;
     for (int i = 0; i < list_size; i++) {
         Booking booking = {0};
@@ -874,22 +906,24 @@ void handle_bookings_list_status(int socket_fd, User *user) {
             print_error_and_exit("Failed to read complete booking from server. Terminating.", CLIENT_ERROR_READ);
         }
         booking = booking_ntoh(booking);
-        print_booking(booking);
+        print_booking(booking, i);
     }
 }
 
 void handle_force_booking_status(int socket_fd, User *user) {
-    printf("Force change booking status...\n");
-    printf("WARNING: THIS OPERATION CAN LEAD TO INCONSISTENT DATABASE\n");
+    print_warning("Force change booking status...\n");
+    print_warning("THIS OPERATION CAN LEAD TO INCONSISTENT DATABASE\n");
     Booking request_booking = {0};
     char buffer_input[64];
     printf("Enter booking ID to change status: ");
     fgets(buffer_input, sizeof(buffer_input), stdin);
-    int read_count = sscanf(buffer_input, "%u", &request_booking.booking_id);
-    if (read_count != 1 || request_booking.booking_id <= 0) {
+    int booking_id;
+    int read_count = sscanf(buffer_input, "%u", &booking_id);
+    if (read_count != 1 || booking_id <= 0) {
         printf("Invalid booking ID. Operation cancelled.\n");
         return;
     }
+    request_booking.booking_id = booking_id;
     printf("Enter new booking status (0: Pending, 1: Approved, 2: Rejected): ");
     fgets(buffer_input, sizeof(buffer_input), stdin);
     read_count = sscanf(buffer_input, "%d", (int *)&request_booking.status);
@@ -910,7 +944,7 @@ void handle_force_booking_status(int socket_fd, User *user) {
     }
     response_header = header_ntoh(response_header);
     if (response_header.operation == OPCODE_ERROR) {
-        printf("Force change booking status failed. Booking may not exist or an error occurred.\n");
+        print_error("Force change booking status failed.\n");
         return;
     }
     if (response_header.operation != OPCODE_OK || response_header.payload_size != sizeof(Booking)) {
@@ -922,8 +956,9 @@ void handle_force_booking_status(int socket_fd, User *user) {
         print_error_and_exit("Failed to read complete response payload from server. Terminating.", CLIENT_ERROR_READ);
     }
     response_booking = booking_ntoh(response_booking);
-    printf("Booking status updated:\n");
-    print_booking(response_booking);
+    print_success("Booking status updated:\n");
+    print_booking_header();
+    print_booking(response_booking, 1);
 }
 
 // EOF

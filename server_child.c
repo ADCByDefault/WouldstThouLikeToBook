@@ -35,6 +35,14 @@ int main(int argc, char const *argv[]) {
         }
         header = header_ntoh(header);
         printf("From client operation=%d,payload_size=%d\n", header.operation, header.payload_size);
+        if (!is_valid_opcode_for_user_by_type(header.operation, user.user_type)) {
+            printf("Invalid operation code received: %d\n", header.operation);
+            Header response_header = {0};
+            response_header.operation = OPCODE_ERROR;
+            response_header.payload_size = 0;
+            send_header_and_payload(socket_fd, response_header, NULL);
+            continue;
+        }
         for (int i = 0; i < operation_count; i++) {
             if (HANDLERS[i].opcode == header.operation) {
                 HANDLERS[i].handler(socket_fd, &user, header);

@@ -47,9 +47,9 @@ typedef struct OpcodeDescription {
     const char *description;
 } OpcodeDescription;
 
-extern const OpCode GUEST_OPCODES[5];
+extern const OpCode GUEST_OPCODES[4];
 extern const OpCode USER_OPCODES[8];
-extern const OpCode SUPERUSER_OPCODES[11];
+extern const OpCode SUPERUSER_OPCODES[12];
 extern const OpcodeDescription OPCODE_DESCRIPTIONS[];
 
 typedef struct Room {

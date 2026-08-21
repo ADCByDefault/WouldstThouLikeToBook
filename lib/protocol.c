@@ -13,8 +13,11 @@
 #include <unistd.h>
 
 // for testing purposes giving privilage to guest
-const OpCode GUEST_OPCODES[5] = {
-    OPCODE_LOGIN, OPCODE_SIGNUP, OPCODE_ROOMS_LIST, OPCODE_BOOKINGS_LIST_BY_ROOM_ID, OPCODE_BOOKINGS_LIST_BY_TIME_RANGE,
+const OpCode GUEST_OPCODES[4] = {
+    OPCODE_LOGIN,
+    OPCODE_SIGNUP,
+    OPCODE_ROOMS_LIST,
+    OPCODE_BOOKINGS_LIST_BY_ROOM_ID,
 };
 const OpCode USER_OPCODES[8] = {OPCODE_ROOMS_LIST,
                                 OPCODE_CREATE_BOOKING,
@@ -24,8 +27,9 @@ const OpCode USER_OPCODES[8] = {OPCODE_ROOMS_LIST,
                                 OPCODE_BOOKINGS_LIST_BY_STATUS,
                                 OPCODE_BOOKINGS_LIST_BY_TIME_RANGE,
                                 OPCODE_LOGOUT};
-const OpCode SUPERUSER_OPCODES[11] = {
+const OpCode SUPERUSER_OPCODES[12] = {
     OPCODE_LOGOUT,
+    OPCODE_ROOMS_LIST,
     OPCODE_BOOKINGS_LIST_BY_ROOM_ID,
     OPCODE_BOOKINGS_LIST_BY_BOOKING_ID,
     OPCODE_BOOKINGS_LIST_BY_STATUS,
