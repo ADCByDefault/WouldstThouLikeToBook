@@ -22,4 +22,4 @@ clean:
 	rm -f *.o server server_child client test populate
 
 clean-data:
-	rm -f data/users.dat data/rooms.dat data/bookings.dat
+	rm -f users.dat rooms.dat bookings.dat
