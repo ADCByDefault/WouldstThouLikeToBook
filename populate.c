@@ -34,7 +34,7 @@ void create_users() {
         {"prof.vecchio", "prof", USER},      {"studente1", "studente1", USER},  {"studente2", "studente2", USER},
     };
     FILE *users_file = fopen(USERS_FILE_NAME, "wb");
-    fwrite(users, sizeof(UserSave), 8, users_file);
+    fwrite(users, sizeof(UserSave), 9, users_file);
     fclose(users_file);
 }
 void create_data() {

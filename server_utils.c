@@ -834,10 +834,12 @@ Booking approve_booking(Booking booking_to_approve) {
         return approved_booking; // Error locking bookings file
     }
     if (has_booking_conflict_no_lock(booking_to_approve, bookings_file)) {
+        fseek(bookings_file, -sizeof(Booking), SEEK_CUR);
+        existing_booking.status = REJECTED;
+        fwrite(&existing_booking, sizeof(Booking), 1, bookings_file);
         unlock_writing_for_file(bookings_file);
         fclose(bookings_file);
-        reject_booking(booking_to_approve); // Reject the booking due to conflict
-        return approved_booking;            // Booking conflict detected
+        return approved_booking; // Booking conflict detected
     }
     booking_to_approve = existing_booking;
     booking_to_approve.status = APPROVED;

@@ -684,7 +684,7 @@ void handle_bookings_list_room_id(int socket_fd, User *user) {
     }
     int list_size = header.payload_size / sizeof(Booking);
     if (list_size == 0) {
-        print_info("No bookings found.%u\n");
+        print_info("No bookings found.\n");
         return;
     }
     printf("Bookings List for room ID: %u\n", room_id);

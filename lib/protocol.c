@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
 
 // for testing purposes giving privilage to guest
 const OpCode GUEST_OPCODES[4] = {
@@ -198,6 +199,9 @@ int read_exact(int fd, void *buffer, uint32_t size) {
     while (total_read < size) {
         int bytes_read = read(fd, buffer + total_read, size - total_read);
         if (bytes_read <= 0) {
+            if(errno == EINTR) {
+                continue; // Interrupted by signal, retry
+            }
             return total_read;
         }
         total_read += bytes_read;
