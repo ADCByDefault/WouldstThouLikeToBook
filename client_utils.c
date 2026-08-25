@@ -45,8 +45,8 @@ struct sockaddr_in initialize_client() {
 }
 
 void print_success(const char *message) { printf(C_GREEN C_BOLD "[ OK ] " C_RESET "%s\n", message); }
-void print_error(const char *message) { printf(C_RED C_BOLD "[ ERRORE ] " C_RESET "%s\n", message); }
-void print_warning(const char *message) { printf(C_YELLOW C_BOLD "[ ATTENZIONE ] " C_RESET "%s\n", message); }
+void print_error(const char *message) { printf(C_RED C_BOLD "[ ERROR ] " C_RESET "%s\n", message); }
+void print_warning(const char *message) { printf(C_YELLOW C_BOLD "[ WARNING ] " C_RESET "%s\n", message); }
 void print_info(const char *message) { printf(C_CYAN C_BOLD "[ INFO ] " C_RESET "%s\n", message); }
 void print_error_and_exit(const char *error_message, int error_code) {
     if (error_code == 0) {
@@ -194,8 +194,9 @@ void handle_signup(int socket_fd, User *user) {
     }
     *user = user_ntoh(response_user);
     print_success("Signup successful.");
+    print_application_info(*user);
 }
-void handle_logout(int socket_fd, User *user) {
+void handle_logout(int socket_fd, User *user) { 
     Header header = {OPCODE_LOGOUT, 0};
     int bytes_sent = send_header_and_payload(socket_fd, header, NULL);
     if (bytes_sent < HEADER_SIZE) {

@@ -22,8 +22,8 @@ void save_booking(Booking new_booking) {
     fclose(bookings_file);
 }
 void create_rooms() {
-    Room rooms[] = {{1, "Aula 1"}, {2, "Aula 2"}, {3, "Aula 3"}, {4, "Aula 4"},
-                    {5, "Aula 5"}, {6, "Aula 6"}, {7, "Aula 7"}, {8, "Laboratorio 1"}};
+    Room rooms[] = {{1, "Aula.1"}, {2, "Aula.2"}, {3, "Aula.3"}, {4, "Aula.4"},
+                    {5, "Aula.5"}, {6, "Aula.6"}, {7, "Aula.7"}, {8, "Laboratorio.1"}};
     FILE *rooms_file = fopen(ROOMS_FILE_NAME, "wb");
     fwrite(rooms, sizeof(Room), 8, rooms_file);
     fclose(rooms_file);
