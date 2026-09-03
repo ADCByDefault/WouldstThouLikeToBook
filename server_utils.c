@@ -37,18 +37,21 @@ struct sockaddr_in initialize_server() {
     if (users_file == NULL) {
         return (struct sockaddr_in){0}; // Error creating users file
     }
+    fchmod(fileno(users_file), S_IRUSR | S_IWUSR);
     fclose(users_file);
 
     FILE *rooms_file = fopen(ROOMS_FILE_NAME, "ab");
     if (rooms_file == NULL) {
         return (struct sockaddr_in){0}; // Error creating rooms file
     }
+    fchmod(fileno(rooms_file), S_IRUSR | S_IWUSR);
     fclose(rooms_file);
 
     FILE *bookings_file = fopen(BOOKINGS_FILE_NAME, "ab");
     if (bookings_file == NULL) {
         return (struct sockaddr_in){0}; // Error creating bookings file
     }
+    fchmod(fileno(bookings_file), S_IRUSR | S_IWUSR);
     fclose(bookings_file);
 
     // Creating admin user
